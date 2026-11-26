@@ -1,0 +1,153 @@
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import type { z } from 'zod'
+import { barberSchema, defaults, serviceSchema, settingsSchema, shiftSchema } from '../../../shared/schemas.ts'
+import { clock, fromClock, rupiah } from '../../../shared/time.ts'
+import type { Barber, Service, Settings, Shift } from '../../../shared/types.ts'
+import { Avatar, Empty, Failure, Loading, Modal } from '../../components/ui.tsx'
+import { errorText } from '../../lib/api.ts'
+import { useAdminApi, useAdminQuery } from './admin-data.ts'
+
+type Kind = 'services' | 'barbers' | 'shifts'
+type CatalogItem = Service | Barber | Shift
+type Field = { name: string; label: string; type?: 'text' | 'textarea' | 'number' | 'check' | 'time' | 'url'; min?: number; max?: number; step?: number; optional?: boolean }
+const active: Field = { name: 'is_active', label: 'Aktif', type: 'check' }
+const sort: Field = { name: 'sort_order', label: 'Urutan tampilan', type: 'number', min: 0, max: 9999 }
+const description: Field = { name: 'description', label: 'Deskripsi', type: 'textarea', max: 1000, optional: true }
+const configs: Record<Kind, { title: string; singular: string; schema: z.ZodType; fields: Field[]; initial: Record<string, unknown> }> = {
+  services: {
+    title: 'Layanan', singular: 'layanan', schema: serviceSchema,
+    fields: [{ name: 'name', label: 'Nama layanan', max: 100 }, description, { name: 'price', label: 'Harga (Rp)', type: 'number', min: 0, max: 100000000 },
+      { name: 'duration_minutes', label: 'Durasi (menit)', type: 'number', min: 5, max: 480, step: 5 }, sort, active],
+    initial: { name: '', description: '', price: 0, duration_minutes: 30, sort_order: 0, is_active: true },
+  },
+  barbers: {
+    title: 'Capster', singular: 'capster', schema: barberSchema,
+    fields: [{ name: 'name', label: 'Nama capster', max: 100 }, { name: 'photo_url', label: 'URL foto HTTPS', type: 'url', optional: true, max: 2048 },
+      description, sort, active],
+    initial: { name: '', photo_url: '', description: '', sort_order: 0, is_active: true },
+  },
+  shifts: {
+    title: 'Shift Kerja', singular: 'shift', schema: shiftSchema,
+    fields: [{ name: 'name', label: 'Nama shift', max: 100 }, { name: 'start_time', label: 'Jam mulai (WIB)', type: 'time' },
+      { name: 'end_time', label: 'Jam selesai (WIB)', type: 'time' }, active],
+    initial: { name: '', start_time: 480, end_time: 960, is_active: true },
+  },
+}
+const businessFields: Field[] = [
+  { name: 'name', label: 'Nama barbershop', max: 100 }, { name: 'logo_url', label: 'URL logo HTTPS', type: 'url', optional: true, max: 2048 },
+  description, { name: 'whatsapp', label: 'WhatsApp dengan kode negara', max: 16, optional: true },
+  { name: 'address', label: 'Alamat', type: 'textarea', max: 400, optional: true },
+  { name: 'opens', label: 'Jam buka (WIB)', type: 'time' }, { name: 'closes', label: 'Jam tutup (WIB)', type: 'time' },
+  { name: 'interval', label: 'Interval slot (menit)', type: 'number', min: 5, max: 120, step: 5 },
+  { name: 'max_days', label: 'Maksimal hari pemesanan ke depan', type: 'number', min: 0, max: 90 },
+  { name: 'lead_minutes', label: 'Minimal waktu sebelum booking (menit)', type: 'number', min: 0, max: 10080 },
+  { name: 'phone_required', label: 'Wajibkan nomor WhatsApp pelanggan', type: 'check' },
+  { name: 'online_enabled', label: 'Terima reservasi online', type: 'check' },
+  { name: 'confirmation', label: 'Pesan konfirmasi pelanggan', type: 'textarea', max: 500, optional: true },
+]
+function dataValue(form: FormData, field: Field) {
+  const value = String(form.get(field.name) ?? '')
+  if (field.type === 'check') return form.has(field.name)
+  if (field.type === 'time') return fromClock(value)
+  return field.type === 'number' ? Number(value) : value
+}
+export function HourInput({ name, value, onChange }: { name?: string; value: string; onChange?: (value: string) => void }) {
+  return <input name={name} required pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00" placeholder="08:00"
+    {...(onChange ? { value, onChange: (event) => onChange(event.target.value) } : { defaultValue: value })} />
+}
+function Editor({ fields, schema, initial, onSave }: {
+  fields: Field[]; schema: z.ZodType; initial: Record<string, unknown>; onSave: (value: unknown) => Promise<void>
+}) {
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const [preview, setPreview] = useState(String(initial.photo_url ?? initial.logo_url ?? ''))
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const result = schema.safeParse(Object.fromEntries(fields.map((field) => [field.name, dataValue(form, field)])))
+    if (!result.success) { setError(result.error.issues[0].message); return }
+    setError(''); setPending(true)
+    try { await onSave(result.data) }
+    catch (err) { setError(errorText(err)) }
+    finally { setPending(false) }
+  }
+  return <form className="fields admin-form" onSubmit={(event) => void submit(event)}>
+    {fields.map((field) => {
+      const value = initial[field.name]
+      const imageField = field.name === 'photo_url' || field.name === 'logo_url'
+      if (field.type === 'check') return <label className="field check-field" key={field.name}><input type="checkbox" name={field.name} defaultChecked={Boolean(value)} />{field.label}</label>
+      return <label className={'field ' + (field.type === 'textarea' ? 'wide' : '')} key={field.name}>{field.label}
+        {field.type === 'textarea' ? <textarea name={field.name} defaultValue={String(value ?? '')} rows={3} maxLength={field.max} /> :
+          field.type === 'time' ? <HourInput name={field.name} value={clock(Number(value))} /> :
+          <input name={field.name} defaultValue={String(value ?? '')} type={field.type ?? 'text'} required={!field.optional} min={field.min}
+            max={field.type === 'number' ? field.max : undefined} step={field.step}
+            maxLength={field.type !== 'number' ? field.max : undefined} onChange={imageField ? (event) => setPreview(event.target.value) : undefined} />}
+        {imageField && <Avatar photo={/^https:\/\//i.test(preview) ? preview : ''} name="Pratinjau gambar" />}
+      </label>
+    })}
+    {error && <p className="message danger wide" role="alert">{error}</p>}
+    <button className="button gold" disabled={pending}>{pending ? 'Menyimpan…' : 'Simpan'}</button>
+  </form>
+}
+function detail(item: CatalogItem) {
+  if ('price' in item) return rupiah(item.price) + ' · ' + item.duration_minutes + ' menit'
+  if ('start_time' in item) return clock(item.start_time) + '–' + clock(item.end_time) + ' WIB'
+  return item.description || 'Urutan tampil ' + item.sort_order
+}
+export function CatalogPage({ kind }: { kind: Kind }) {
+  const config = configs[kind]
+  const data = useAdminQuery<CatalogItem[]>('/' + kind)
+  const admin = useAdminApi()
+  const [edit, setEdit] = useState<CatalogItem | 'new' | null>(null)
+  const [removal, setRemoval] = useState<CatalogItem | null>(null)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState('')
+  async function deactivate() {
+    if (!removal) return
+    setPending(true); setError('')
+    try {
+      await admin.request('/' + kind + '/' + removal.id, 'DELETE')
+      setRemoval(null)
+      await admin.saved('Data dinonaktifkan.')
+    } catch (err) { setError(errorText(err)) }
+    finally { setPending(false) }
+  }
+  return <div className="admin-stack">
+    <header className="admin-heading section-row"><h1>{config.title}</h1>
+      <button className="button gold" onClick={() => setEdit('new')}><Plus size={18} /> Tambah {config.singular}</button></header>
+    {data.isPending ? <Loading /> : data.isError ? <Failure error={data.error} retry={() => void data.refetch()} /> :
+      !data.data.length ? <Empty>Belum ada {config.singular}.</Empty> : <div className="admin-card">
+      <ul className="data-list catalog-list">{data.data.map((item) => <li key={item.id}>
+        <div className="item-info">{'photo_url' in item && <Avatar photo={item.photo_url} name={item.name} />}
+          <div><strong>{item.name}</strong><small>{detail(item)}</small></div></div>
+        <div className="admin-actions"><span className={'badge ' + (item.is_active ? 'good' : '')}>{item.is_active ? 'Aktif' : 'Nonaktif'}</span>
+          <button className="button outline" onClick={() => setEdit(item)}>Ubah</button>
+          {item.is_active && <button className="button outline danger-button" onClick={() => { setError(''); setRemoval(item) }}>Nonaktifkan</button>}</div>
+      </li>)}</ul></div>}
+    {edit && <Modal title={(edit === 'new' ? 'Tambah ' : 'Ubah ') + config.singular} close={() => setEdit(null)}>
+      <Editor fields={config.fields} schema={config.schema} initial={edit === 'new' ? config.initial : edit}
+        onSave={async (value) => {
+          await admin.request('/' + kind + (edit === 'new' ? '' : '/' + edit.id), edit === 'new' ? 'POST' : 'PATCH', value)
+          setEdit(null)
+          await admin.saved('Data berhasil disimpan.')
+        }} />
+    </Modal>}
+    {removal && <Modal title={'Nonaktifkan ' + config.singular + '?'} close={() => setRemoval(null)}>
+      <p>{removal.name} akan dinonaktifkan.</p>
+      {error && <p className="message danger" role="alert">{error}</p>}
+      <div className="admin-actions"><button className="button outline" onClick={() => setRemoval(null)}>Kembali</button>
+        <button className="button outline danger-button" disabled={pending} onClick={() => void deactivate()}>Nonaktifkan</button></div>
+    </Modal>}
+  </div>
+}
+export function SettingsPage() {
+  const data = useAdminQuery<Settings>('/settings')
+  const admin = useAdminApi()
+  return <div className="admin-stack"><header className="admin-heading"><h1>Pengaturan</h1></header>
+    {data.isPending ? <Loading /> : data.isError ? <Failure error={data.error} retry={() => void data.refetch()} /> :
+      <div className="admin-card"><Editor key={JSON.stringify(data.data)} fields={businessFields} schema={settingsSchema} initial={data.data ?? defaults}
+        onSave={async (value) => { await admin.request('/settings', 'PATCH', value); await admin.saved('Pengaturan berhasil disimpan.') }} /></div>}
+  </div>
+}

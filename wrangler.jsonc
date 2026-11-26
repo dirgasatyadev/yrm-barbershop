@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yrm-barber-dev",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-03-01",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*", "/admin", "/admin/*"]
+  },
+  "vars": { "APP_ENV": "development" },
+  "d1_databases": [{
+    "binding": "DB", "database_name": "yrm-barber-dev",
+    "database_id": "00000000-0000-4000-8000-000000000001", "migrations_dir": "migrations"
+  }],
+  "env": {
+    "production": {
+      "name": "yrm-barber",
+      "account_id": "707c6104ec91159a66da339fcf6a048f",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "yrm.brantzy.com", "custom_domain": true }],
+      "vars": { "APP_ENV": "production" },
+      "d1_databases": [{
+        "binding": "DB", "database_name": "yrm-barber",
+        "database_id": "d389fd8b-583a-448a-bb52-91fa9bfb2230", "migrations_dir": "migrations"
+      }]
+    }
+  }
+}

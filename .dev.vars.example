@@ -1,0 +1,3 @@
+# Pembuatan admin dilakukan lewat CLI dengan input tersembunyi.
+# Opsional. Gunakan secret yang panjang dan acak untuk memisahkan hash pembatas laju.
+# RATE_LIMIT_SECRET=
