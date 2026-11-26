@@ -5,6 +5,7 @@ import type { Env } from './env.ts'
 import { ApiError } from './errors.ts'
 import { adminApi } from './routes/admin.ts'
 import { auth } from './routes/auth.ts'
+import { publicMedia } from './routes/media.ts'
 import { publicApi } from './routes/public.ts'
 
 const app = new Hono<Env>()
@@ -13,12 +14,15 @@ app.use('/api/*', async (c, next) => {
   c.header('Cache-Control', 'no-store')
   await next()
 })
-app.use('/api/*', bodyLimit({ maxSize: 48_000, onError: () => { throw new ApiError(413, 'SIZE', 'Data terlalu besar.') } }))
+const limitJson = bodyLimit({ maxSize: 48_000, onError: () => { throw new ApiError(413, 'SIZE', 'Data terlalu besar.') } })
+app.use('/api/*', (c, next) => c.req.method === 'POST' && c.req.path === '/api/admin/media' ? next() : limitJson(c, next))
 app.route('/api/public', publicApi)
 app.route('/api/auth', auth)
 app.route('/api/admin', adminApi)
+app.route('/media', publicMedia)
 app.notFound(async (c) => {
   if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: { code: 'NOT_FOUND', message: 'Endpoint tidak ditemukan.' } }, 404)
+  if (c.req.path.startsWith('/media/')) return c.text('Gambar tidak ditemukan.', 404)
   if (['GET', 'HEAD'].includes(c.req.method) && (c.req.path === '/admin' || c.req.path.startsWith('/admin/'))) {
     const assets = await c.env.ASSETS.fetch(new Request(new URL('/', c.req.url), { method: c.req.method }))
     const response = new Response(assets.body, assets)

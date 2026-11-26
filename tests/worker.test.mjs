@@ -21,9 +21,9 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
   const { outputFiles } = await build({ entryPoints: ['src/server/index.ts'], bundle: true, write: false, format: 'esm', target: 'es2022' })
   const options = convertV4MiniflareOptions({
     name: 'yrm-worker-test', modules: true, script: outputFiles[0].text, compatibilityDate: '2026-03-01', port: 0,
-    bindings: { APP_ENV: 'production' }, d1Databases: { DB: 'test-yrm' },
+    bindings: { APP_ENV: 'production' }, d1Databases: { DB: 'test-yrm' }, r2Buckets: { MEDIA: 'test-yrm-media' },
     resourcePersistencePath: scratch, logRequests: false,
-    assets: { directory: assets, binding: 'ASSETS', run_worker_first: ['/api/*', '/admin/*'],
+    assets: { directory: assets, binding: 'ASSETS', run_worker_first: ['/api/*', '/admin/*', '/media/*'],
       routerConfig: { has_user_worker: true },
       assetConfig: { not_found_handling: 'single-page-application' } },
   })
@@ -72,6 +72,18 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
     assert.equal(response.status, 404)
     assert.equal(response.error.code, 'NOT_FOUND')
   })
+  await t.test('migrasi nama capster mengubah placeholder dan mempertahankan nama khusus', async () => {
+    await database.batch([
+      database.prepare("UPDATE barbers SET name = 'Capster A (Demo)' WHERE id = 'capster-a'"),
+      database.prepare("UPDATE barbers SET name = 'Angger terdaftar' WHERE id = 'capster-b'"),
+    ])
+    const revision = await database.prepare('SELECT revision FROM state_version WHERE id = 1').first('revision')
+    const migration = await readFile('migrations/0002_capster_display_names.sql', 'utf8')
+    await database.batch(migration.split(';').map((sql) => sql.trim()).filter(Boolean).map((sql) => database.prepare(sql)))
+    const barbers = (await call('/public/barbers')).data
+    assert.deepEqual(barbers.map((barber) => barber.name), ['Tio (Demo)', 'Angger terdaftar', 'Yudha'])
+    assert.equal(await database.prepare('SELECT revision FROM state_version WHERE id = 1').first('revision'), revision + 1)
+  })
   await t.test('validasi login, cookie aman, akses tanpa sesi, dan CSRF', async () => {
     assert.equal((await call('/admin/dashboard')).status, 401)
     assert.equal((await call('/auth/login', { method: 'POST', body: { identifier: 'uji', password: 'keliru' } })).status, 401)
@@ -87,6 +99,39 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
     assert.equal((await call('/auth/me', { secure: true })).data.username, 'uji')
     assert.equal((await admin('/settings', 'PATCH', {}, { 'X-CSRF-Token': 'keliru' })).status, 403)
     assert.equal((await admin('/settings', 'PATCH', {}, { Origin: 'https://lain.example' })).status, 403)
+  })
+  await t.test('foto admin tersimpan di R2 dan pengaturan lama dapat diperbarui sebagian', async () => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/+CkAAAAASUVORK5CYII=', 'base64')
+    const upload = (body, headers = {}) => worker.dispatchFetch(origin + '/api/admin/media', {
+      method: 'POST', body, headers: { Origin: origin, Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'image/png', ...headers },
+    })
+    assert.equal((await upload(png, { Cookie: '' })).status, 401)
+    assert.equal((await upload(png, { 'X-CSRF-Token': '' })).status, 403)
+    assert.equal((await upload(Buffer.from('not a png'))).status, 400)
+    assert.equal((await upload(png, { 'Content-Type': 'image/svg+xml' })).status, 400)
+    assert.equal((await upload(new Uint8Array(2 * 1024 * 1024 + 1))).status, 413)
+    const saved = await upload(png)
+    assert.equal(saved.status, 201, await saved.clone().text())
+    const { data: { url } } = await saved.json()
+    assert.match(url, /^\/media\/[a-f0-9-]+\.png$/)
+    const picture = await worker.dispatchFetch(origin + url)
+    assert.equal(picture.status, 200)
+    assert.equal(picture.headers.get('Content-Type'), 'image/png')
+    assert.deepEqual(Buffer.from(await picture.arrayBuffer()), png)
+    assert.equal((await worker.dispatchFetch(origin + '/media/no-file.png')).status, 404)
+    assert.equal((await admin('/settings', 'PATCH', {
+      logo_url: url, cover_url: url, background_url: url, description: 'Profil YRM',
+      contact_phone: '628123456789', instagram_url: 'https://www.instagram.com/yrmbarber/',
+      confirm_notice: 'Mohon datang tepat waktu.',
+    })).status, 200)
+    assert.equal((await admin('/settings', 'PATCH', { opens: 480 })).status, 200)
+    const publicSettings = (await call('/public/settings')).data
+    assert.equal(publicSettings.cover_url, url)
+    assert.equal(publicSettings.confirm_notice, 'Mohon datang tepat waktu.')
+    assert.equal(publicSettings.description, 'Profil YRM')
+    const barber = (await admin('/barbers')).data.find((row) => row.id === 'capster-a')
+    assert.equal((await admin('/barbers/capster-a', 'PATCH', { ...barber, photo_url: url })).status, 200)
+    assert.equal((await call('/public/barbers')).data.find((row) => row.id === 'capster-a').photo_url, url)
   })
   await t.test('shift, libur, waktu lampau dan akhir durasi diberlakukan', async () => {
     const offered = await slots()
@@ -131,6 +176,14 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
     assert.equal((await post({ ...booking('capster-a', 630), quote: { price: 25000, duration_minutes: 30 } })).error.code, 'QUOTE_CHANGED')
     assert.equal((await slots()).find((slot) => slot.start === 930).barbers.find((b) => b.id === 'capster-a').status, 'outside')
     assert.equal((await post(booking('capster-a', 630))).data.price_snapshot, 50000)
+  })
+  await t.test('daftar admin memisahkan booking per capster dan mengurutkan jam pada tanggal yang sama', async () => {
+    const extra = await post(booking('capster-a', 540))
+    assert.equal(extra.status, 201)
+    const group = await admin('/bookings?date=' + day + '&barber_id=capster-a&order=schedule')
+    assert.equal(group.status, 200)
+    assert.deepEqual(group.data.items.map((item) => [item.barber_id, item.start_time]), [['capster-a', 540], ['capster-a', 630]])
+    assert.equal((await admin('/bookings/' + extra.data.id + '/cancel', 'POST')).status, 200)
   })
   await t.test('libur, nonaktif capster, dan perubahan shift yang berbenturan ditolak', async () => {
     const off = { barber_id: 'capster-b', schedule_date: day, shift_id: null, start_time: null, end_time: null, is_day_off: true }

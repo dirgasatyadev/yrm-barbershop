@@ -1,8 +1,9 @@
 import { addDays, monday, startStamp, today, weekday } from '../../shared/time.ts'
+import { settingsSchema } from '../../shared/schemas.ts'
 import type { Barber, Booking, Rotation, Schedule, Service, Settings, Shift, WeekCell } from '../../shared/types.ts'
 import { audit, readState, revisionGuard, saveSetting } from '../db/state.ts'
 import type { State } from '../db/state.ts'
-import { ApiError, conflict, dbRace, notFound } from '../errors.ts'
+import { ApiError, conflict, dbRace, notFound, parse } from '../errors.ts'
 import { conflictsFor, rotationEntry, workFor } from './calendar.ts'
 
 const updated = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
@@ -68,9 +69,10 @@ export async function saveCatalog(db: D1Database, actor: string, key: CatalogKey
   return row
 }
 
-export async function saveBusiness(db: D1Database, actor: string, settings: Settings) {
+export async function saveBusiness(db: D1Database, actor: string, changes: Partial<Settings>) {
   const from = today()
   const state = await readState(db, from, '2099-12-31')
+  const settings = parse(settingsSchema, { ...state.settings, ...changes })
   assertSafe({ ...state, settings }, await upcoming(db, from))
   await mutate(db, state, actor, 'update', 'settings', 'business', [saveSetting(db, 'business', settings)])
   return settings

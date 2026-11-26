@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, Clock3, Copy, Droplets, MessageCircle, Scissors, Users } from 'lucide-react'
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, Clock3, Copy, Droplets, Info, MessageCircle, Scissors, Users } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { customerSchema } from '../../../shared/schemas.ts'
@@ -8,6 +8,7 @@ import type { Availability, BookingReceipt, Service } from '../../../shared/type
 import { Avatar, Empty, Failure, Loading, useToast } from '../../components/ui.tsx'
 import { api, errorText, publicKey, RequestError } from '../../lib/api.ts'
 import { useServices, useSettings } from './public-data.ts'
+import { SlotPicker } from './SlotPicker.tsx'
 
 const steps = ['Layanan', 'Waktu', 'Capster', 'Data diri', 'Konfirmasi', 'Berhasil']
 const statusLabel = { available: 'Tersedia', booked: 'Sudah dibooking', off: 'Libur / belum terjadwal', outside: 'Di luar jam kerja' }
@@ -18,7 +19,7 @@ function ServiceCard({ service, select }: { service: Service; select: () => void
     <h3>{service.name}</h3>
     {service.description && <p>{service.description}</p>}
     <div className="service-meta"><strong>{rupiah(service.price)}</strong><span><Clock3 size={15} /> {service.duration_minutes} menit</span></div>
-    <button type="button" className="button outline service-action" onClick={select}>Pilih Layanan</button>
+    <button type="button" className="button primary service-action" onClick={select}>Pilih Layanan</button>
   </article>
 }
 const whatsappUrl = (number: string) => 'https://wa.me/' + number.replace(/\D/g, '')
@@ -45,6 +46,7 @@ export default function BookingWizard() {
   const [date, setDate] = useState(today)
   const [start, setStart] = useState<number | null>(null)
   const [capster, setCapster] = useState<string | null>(null)
+  const [slotBarber, setSlotBarber] = useState('')
   const [fields, setFields] = useState({ customer_name: '', customer_phone: '', customer_notes: '' })
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
@@ -118,18 +120,13 @@ export default function BookingWizard() {
             <label className="field date-input">Tanggal kedatangan<input type="date" value={date} min={today()} max={addDays(today(), config.max_days)}
               onChange={(e) => { if (e.target.value) selectDate(e.target.value) }} /></label>
             <div className="quick-dates" aria-label="Tanggal terdekat">{Array.from({ length: Math.min(config.max_days + 1, 5) }, (_, i) => addDays(today(), i)).map((day) =>
-              <button type="button" key={day} className={'button outline ' + (date === day ? 'selected' : '')} aria-pressed={date === day} onClick={() => selectDate(day)}>
+              <button type="button" key={day} className="button choice" aria-pressed={date === day} onClick={() => selectDate(day)}>
                 {day === today() ? 'Hari ini' : dateLabel(day, true)}</button>)}</div>
           </div>
-          <div className="section-row"><h2>Jam kedatangan</h2><span className="muted">WIB</span></div>
-          <div className="slot-legend"><span><i /> Tersedia</span><span><i className="full" /> Penuh</span><span><i className="off" /> Tidak tersedia</span></div>
           {slots.isPending ? <Loading /> : slots.isError ? <Failure error={slots.error} retry={() => void slots.refetch()} /> :
-            <>
-              {!slots.data.slots.some((item) => item.state === 'available') && <Empty>Tidak ada jam kosong. Coba tanggal lain.</Empty>}
-              <div className="time-grid">{slots.data.slots.map((item) => <button type="button" className={'time ' + item.state}
-                key={item.start} disabled={item.state !== 'available'} aria-label={clock(item.start) + ' ' + ({ available: 'tersedia', full: 'penuh', unavailable: 'tidak tersedia' })[item.state]}
-                onClick={() => { setStart(item.start); setCapster(null); go(2) }}>{clock(item.start)}</button>)}</div>
-            </>}
+            <SlotPicker availability={slots.data} filter={slotBarber} onFilter={setSlotBarber} onSlot={(time, barberId) => {
+              setStart(time); setCapster(barberId); go(barberId ? 3 : 2)
+            }} />}
         </>}
         {effectiveStep === 2 && <>
           <p className="muted">{dateLabel(date)} · {start !== null && clock(start)} WIB</p>
@@ -139,21 +136,24 @@ export default function BookingWizard() {
           <div className="team-grid booking-team">{slots.data?.barbers.map((barber) => {
             const status = slot?.barbers.find((item) => item.id === barber.id)?.status ?? 'outside'
             return <article className="public-card team-card" key={barber.id}><Avatar photo={barber.photo_url} name={barber.name} /><h3>{barber.name}</h3>
-              <span className={'badge ' + (status === 'available' ? 'good' : status === 'booked' ? 'warn' : '')}>{statusLabel[status]}</span>
+              <span className={'badge ' + (status === 'available' ? 'good' : status === 'booked' ? 'bad' : '')}>{statusLabel[status]}</span>
               {!barber.work.is_day_off && <p className="muted">{clock(barber.work.start)}–{clock(barber.work.end)} WIB</p>}
-              <button className="button outline" disabled={status !== 'available'} onClick={() => { setCapster(barber.id); go(3) }}>Pilih Capster</button>
+              <button className="button primary" disabled={status !== 'available'} onClick={() => { setCapster(barber.id); go(3) }}>Pilih Capster</button>
             </article>
           })}</div>
           {config.whatsapp && <a className="button outline whatsapp" href={whatsappUrl(config.whatsapp)} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Konsultasi WhatsApp</a>}
         </>}
         {effectiveStep === 3 && <form className="fields" onSubmit={(event) => { event.preventDefault(); if (validateCustomer()) go(4) }}>
+          <div className="selected-capster"><Avatar photo={selectedBarber?.photo_url ?? ''} name="" />
+            <div><span>Capster</span><strong>{selectedBarber?.name ?? 'Capster Mana Saja'}</strong></div>
+          </div>
           <label className="field">Nama pelanggan<input required minLength={2} maxLength={100} autoComplete="name" value={fields.customer_name}
             onChange={(e) => setFields({ ...fields, customer_name: e.target.value })} /></label>
           <label className="field">Nomor WhatsApp {config.phone_required ? '' : '(opsional)'}<input type="tel" required={config.phone_required}
             autoComplete="tel" maxLength={30} value={fields.customer_phone} onChange={(e) => setFields({ ...fields, customer_phone: e.target.value })} /></label>
           <label className="field">Catatan (opsional)<textarea maxLength={500} rows={3} value={fields.customer_notes}
             onChange={(e) => setFields({ ...fields, customer_notes: e.target.value })} /></label>
-          <button className="button gold" type="submit">Tinjau Reservasi</button>
+          <button className="button primary" type="submit">Tinjau Reservasi</button>
         </form>}
         {effectiveStep === 4 && service && start !== null && <>
           <dl className="summary">
@@ -164,9 +164,12 @@ export default function BookingWizard() {
             <dt>Jam mulai</dt><dd>{clock(start)} WIB</dd><dt>Estimasi selesai</dt><dd>{clock(start + service.duration_minutes)} WIB</dd>
             <dt className="summary-total">Total harga</dt><dd className="summary-total">{rupiah(service.price)}</dd>
           </dl>
-          <button className="button gold" type="button" disabled={pending} onClick={() => void submit()}>{pending ? 'Menyimpan…' : 'Konfirmasi Booking'}</button>
+          {config.confirm_notice && <p className="booking-notice"><Info size={20} aria-hidden="true" /> {config.confirm_notice}</p>}
+          <button className="button primary" type="button" disabled={pending} onClick={() => void submit()}>{pending ? 'Menyimpan…' : 'Konfirmasi Booking'}</button>
         </>}
-        {effectiveStep > 0 && <button type="button" className="text-button wizard-back" disabled={pending} onClick={() => go(effectiveStep - 1)}><ChevronLeft size={17} /> Kembali</button>}
+        {effectiveStep > 0 && <button type="button" className="text-button wizard-back" disabled={pending}
+          onClick={() => go(effectiveStep === 3 && capster && capster === slotBarber ? 1 : effectiveStep - 1)}>
+          <ChevronLeft size={17} /> Kembali</button>}
       </>}
   </Frame>
 }

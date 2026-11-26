@@ -3,14 +3,15 @@ import { QueryClient } from '@tanstack/react-query'
 export class RequestError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) { super(message) }
 }
-export async function api<T>(path: string, options: { method?: string; body?: unknown; csrf?: string; key?: string; signal?: AbortSignal } = {}) {
+export async function api<T>(path: string, options: { method?: string; body?: unknown; file?: File; csrf?: string; key?: string; signal?: AbortSignal } = {}) {
   const headers = new Headers({ Accept: 'application/json' })
-  if (options.body !== undefined) headers.set('Content-Type', 'application/json')
+  if (options.file) headers.set('Content-Type', options.file.type)
+  else if (options.body !== undefined) headers.set('Content-Type', 'application/json')
   if (options.csrf) headers.set('X-CSRF-Token', options.csrf)
   if (options.key) headers.set('Idempotency-Key', options.key)
   const response = await fetch('/api' + path, {
     method: options.method ?? 'GET', headers, credentials: 'same-origin',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body), signal: options.signal,
+    body: options.file ?? (options.body === undefined ? undefined : JSON.stringify(options.body)), signal: options.signal,
   })
   const result = await response.json().catch(() => null) as
     { data?: T; error?: { code: string; message: string; details?: unknown } } | null

@@ -2,9 +2,9 @@ INSERT OR IGNORE INTO services (id, name, description, price, duration_minutes, 
  ('potong-rambut', 'Potong Rambut', 'Potong rambut sesuai gaya yang kamu inginkan, dengan penataan akhir.', 25000, 30, 1),
  ('potong-keramas', 'Potong + Keramas', 'Potong rambut, keramas, dan penataan akhir.', 35000, 30, 2);
 INSERT OR IGNORE INTO barbers (id, name, photo_url, description, sort_order) VALUES
- ('capster-a', 'Capster A', '', '', 1),
- ('capster-b', 'Capster B', '', '', 2),
- ('capster-c', 'Capster C', '', '', 3);
+ ('capster-a', 'Tio', '', '', 1),
+ ('capster-b', 'Angger', '', '', 2),
+ ('capster-c', 'Yudha', '', '', 3);
 INSERT OR IGNORE INTO shifts (id, name, start_time, end_time) VALUES
  ('shift-a', 'Shift A', 480, 960),
  ('shift-b', 'Shift B', 540, 1080),

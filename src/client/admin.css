@@ -40,6 +40,13 @@
   .item-info .avatar { width: 42px; height: 42px; }
   .admin-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
   .admin-form .wide { grid-column: 1 / -1; }
+  .admin-form .editor-section { margin: 10px 0 0; padding-top: 11px; border-top: 1px solid var(--line); }
+  .admin-form .editor-section:first-child { margin: 0; padding: 0; border-top: 0; }
+  .media-field { display: grid; align-content: start; gap: 7px; min-width: 0; }
+  .media-field .text-button { justify-self: start; }
+  .media-field input[type="file"] { font-size: .82rem; }
+  .media-preview { width: 100%; max-width: 260px; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }
+  .media-caption { font-size: .8rem; }
   .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 11px; align-items: end; }
   .table-wrap { max-width: 100%; min-width: 0; overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
   .table-wrap table { border-collapse: collapse; text-align: left; width: 100%; font-size: .89rem; }
@@ -47,9 +54,14 @@
   th { background: #1d1c19; color: #ddccad; }
   tr:last-child td, .calendar-table tr:last-child th { border-bottom-color: transparent; }
   .cell-sub { color: var(--muted); display: block; font-size: .77rem; }
-  .booking-cards { display: none; }
-  .booking-cards .button { margin-top: 9px; }
-  .booking-cards h2 { margin: 0; }
+  .booking-group-head h2 { margin: 0; overflow-wrap: anywhere; }
+  .booking-group-list { list-style: none; padding: 0; margin: 12px 0 0; }
+  .booking-group-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .booking-order { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .booking-person { min-width: 0; overflow-wrap: anywhere; }
+  .booking-time strong { color: var(--action-light); }
+  .booking-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .booking-group-empty, .booking-group-pagination { margin-top: 13px; }
   .danger-button { color: #ffc0c0; border-color: #61393c; }
   .danger-button:hover { color: #ffdddd; border-color: #b3676e; }
   .week-control { display: flex; position: relative; align-items: center; gap: 6px; padding: 0 10px; min-height: 44px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; font-size: .87rem; }
@@ -73,8 +85,8 @@
   .login-card { display: grid; gap: 17px; width: min(100%, 430px); padding: clamp(19px, 5vw, 34px); background: var(--panel); border: 1px solid #443924; border-radius: 15px; }
   .login-card h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); margin-bottom: 5px; }
   @media (max-width: 960px) {
-    .booking-table { display: none; }
-    .booking-cards { display: grid; gap: 9px; }
+    .booking-group-list li { grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; }
+    .booking-row-actions { grid-column: 2 / -1; }
   }
   @media (max-width: 760px) {
     .admin-layout { display: block; }
@@ -86,6 +98,8 @@
     .admin-sidebar.open { display: flex; }
   }
   @media (max-width: 430px) {
+    .booking-group-list li { grid-template-columns: auto minmax(0, 1fr); gap: 6px 8px; }
+    .booking-time { grid-column: 2; }
     .admin-form { grid-template-columns: minmax(0, 1fr); }
     .rotation-row { grid-template-columns: 1fr 1fr; }
     .rotation-row > strong { grid-column: 1 / -1; }

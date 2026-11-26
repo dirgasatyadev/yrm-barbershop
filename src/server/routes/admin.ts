@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { availabilitySchema, barberSchema, bookingFilter, bookingPatch, bookingSchema, date, identifier,
-  rotationSchema, scheduleSchema, serviceSchema, settingsSchema, shiftSchema, weekOperation } from '../../shared/schemas.ts'
+  rotationSchema, scheduleSchema, serviceSchema, settingsPatchSchema, shiftSchema, weekOperation } from '../../shared/schemas.ts'
 import { today } from '../../shared/time.ts'
 import { readState } from '../db/state.ts'
 import type { Env } from '../env.ts'
@@ -11,9 +11,11 @@ import { createBooking, dayAvailability, getBooking, updateBooking } from '../se
 import { getWeek, runWeek, saveBusiness, saveCatalog, saveRotation, saveSchedule } from '../services/operations.ts'
 import { dashboard, listBookings } from '../services/reporting.ts'
 import { jsonBody } from './helpers.ts'
+import { uploadImage } from './media.ts'
 
 export const adminApi = new Hono<Env>()
 adminApi.use('*', authenticate, csrf)
+adminApi.route('/media', uploadImage)
 adminApi.get('/dashboard', async (c) => c.json({ data: await dashboard(c.env.DB) }))
 adminApi.get('/availability', async (c) => {
   const q = parse(availabilitySchema, c.req.query())
@@ -59,6 +61,6 @@ for (const action of ['generate', 'rotate', 'copy'] as const) {
   })
 }
 adminApi.get('/settings', async (c) => c.json({ data: (await readState(c.env.DB, today())).settings }))
-adminApi.patch('/settings', async (c) => c.json({ data: await saveBusiness(c.env.DB, c.get('admin').id, parse(settingsSchema, await jsonBody(c))) }))
+adminApi.patch('/settings', async (c) => c.json({ data: await saveBusiness(c.env.DB, c.get('admin').id, parse(settingsPatchSchema, await jsonBody(c))) }))
 adminApi.get('/rotation', async (c) => c.json({ data: (await readState(c.env.DB, today())).rotation }))
 adminApi.patch('/rotation', async (c) => c.json({ data: await saveRotation(c.env.DB, c.get('admin').id, parse(rotationSchema, await jsonBody(c))) }))

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isMediaImage } from './media.ts'
 
 export const identifier = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/)
 export const date = z.iso.date().refine((value) => value >= '2000-01-01' && value <= '2099-12-31', 'Tanggal di luar rentang')
@@ -6,7 +7,9 @@ const minute = z.number().int().min(0).max(1440).multipleOf(5)
 const sort = z.number().int().min(0).max(9999)
 const name = z.string().trim().min(2, 'Minimal 2 karakter').max(100)
 const description = z.string().trim().max(1000)
-const imageUrl = z.union([z.literal(''), z.url({ protocol: /^https$/ }).max(2048)])
+const httpsUrl = z.url({ protocol: /^https$/ }).max(2048)
+const optionalLink = z.union([z.literal(''), httpsUrl])
+const imageUrl = z.union([optionalLink, z.string().refine(isMediaImage)])
 export const phone = z.string().trim().max(30).refine((value) => value === '' ||
   (/^\+?[0-9 ()-]+$/.test(value) && /^\d{8,15}$/.test(value.replace(/\D/g, ''))), 'Masukkan nomor WhatsApp yang valid')
 const businessPhone = z.string().trim().regex(/^(?:\+?[1-9]\d{7,14})?$/, 'Gunakan kode negara, misalnya 62, diikuti nomor')
@@ -16,16 +19,23 @@ export const serviceSchema = z.object({ name, description, price: z.number().int
 export const barberSchema = z.object({ name, photo_url: imageUrl, description, sort_order: sort, is_active: z.boolean() })
 export const shiftSchema = z.object({ name, start_time: minute, end_time: minute, is_active: z.boolean() })
   .refine((value) => value.start_time < value.end_time, { message: 'Jam selesai harus setelah jam mulai', path: ['end_time'] })
-export const settingsSchema = z.object({
+const settingsFields = z.object({
   name, logo_url: imageUrl, description, whatsapp: businessPhone, address: z.string().trim().max(400),
+  cover_url: imageUrl, background_url: imageUrl, contact_phone: businessPhone,
+  instagram_url: optionalLink, tiktok_url: optionalLink, facebook_url: optionalLink,
   opens: minute, closes: minute, interval: z.number().int().min(5).max(120).multipleOf(5),
   max_days: z.number().int().min(0).max(90), lead_minutes: z.number().int().min(0).max(10080),
   phone_required: z.boolean(), online_enabled: z.boolean(), confirmation: z.string().trim().max(500),
-}).refine((value) => value.opens < value.closes, { message: 'Jam tutup harus setelah jam buka', path: ['closes'] })
+  confirm_notice: z.string().trim().max(500),
+})
+export const settingsSchema = settingsFields.refine((value) => value.opens < value.closes, { message: 'Jam tutup harus setelah jam buka', path: ['closes'] })
+export const settingsPatchSchema = settingsFields.partial()
 export const defaults: z.infer<typeof settingsSchema> = {
-  name: 'YRM Barber', logo_url: '', description: 'Pilih layanan, jadwal, dan capster secara online.',
+  name: 'YRM Barber', logo_url: '', description: 'YRM Barber berdiri sejak 2014 dan melayani potong rambut dengan capster profesional.',
+  cover_url: '', background_url: '', contact_phone: '', instagram_url: '', tiktok_url: '', facebook_url: '',
   whatsapp: '', address: '', opens: 480, closes: 1200, interval: 30, max_days: 30, lead_minutes: 0,
   phone_required: false, online_enabled: true, confirmation: 'Simpan kode reservasi dan tunjukkan saat kamu tiba.',
+  confirm_notice: 'Usahakan datang tepat waktu agar jadwal reservasi berikutnya tidak terganggu.',
 }
 export const scheduleSchema = z.object({
   barber_id: identifier, schedule_date: date, shift_id: identifier.nullable(),
@@ -55,4 +65,5 @@ export const loginSchema = z.object({ identifier: z.string().trim().toLowerCase(
 export const bookingFilter = z.object({
   q: z.string().trim().max(100).default(''), date: date.optional(), barber_id: identifier.optional(),
   service_id: identifier.optional(), status: statusSchema.optional(), page: z.coerce.number().int().min(1).max(10000).default(1),
+  order: z.enum(['recent', 'schedule']).default('recent'),
 })

@@ -4,7 +4,7 @@ import type { FormEvent } from 'react'
 import { bookingSchema } from '../../../shared/schemas.ts'
 import { clock, dateLabel, rupiah, startStamp, today } from '../../../shared/time.ts'
 import type { Availability, Barber, Booking, Service } from '../../../shared/types.ts'
-import { Empty, Failure, Loading, Modal } from '../../components/ui.tsx'
+import { Avatar, Empty, Failure, Loading, Modal } from '../../components/ui.tsx'
 import { errorText } from '../../lib/api.ts'
 import { useAdminApi, useAdminQuery } from './admin-data.ts'
 import { Status, statusLabels } from './Dashboard.tsx'
@@ -14,17 +14,15 @@ const initialFilters = { q: '', date: '', status: '', barber_id: '', service_id:
 export default function Bookings() {
   const [filters, setFilters] = useState(initialFilters)
   const applied = useDeferredValue(filters)
-  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState('')
   const [manual, setManual] = useState(false)
   const barbers = useAdminQuery<Barber[]>('/barbers')
   const services = useAdminQuery<Service[]>('/services')
-  const params = new URLSearchParams(Object.entries(applied).filter(([, value]) => value))
-  params.set('page', String(page))
-  const list = useAdminQuery<BookingList>('/bookings?' + params)
+  const params = new URLSearchParams(Object.entries(applied).filter(([key, value]) => key !== 'barber_id' && value))
+  params.set('order', 'schedule')
+  const groups = barbers.data?.filter((barber) => !applied.barber_id || barber.id === applied.barber_id) ?? []
   function filter(key: keyof typeof filters, value: string) {
     setFilters({ ...filters, [key]: value })
-    setPage(1)
   }
   return <div className="admin-stack">
     <header className="section-row admin-heading"><h1>Reservasi</h1>
@@ -41,32 +39,52 @@ export default function Bookings() {
         <option value="">Semua status</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     </div>
     {(barbers.isError || services.isError) && <Failure error={barbers.error ?? services.error} retry={() => { void barbers.refetch(); void services.refetch() }} />}
-    {list.isPending ? <Loading /> : list.isError ? <Failure error={list.error} retry={() => void list.refetch()} /> : <>
-      {list.data.items.length ? <>
-        <div className="table-wrap booking-table"><table>
-          <thead><tr><th>Pelanggan</th><th>Layanan</th><th>Capster</th><th>Waktu</th><th>Status</th><th>Aksi</th></tr></thead>
-          <tbody>{list.data.items.map((row) => <tr key={row.id}>
-            <td><strong>{row.customer_name}</strong><small className="cell-sub">{row.booking_code}</small></td>
-            <td>{row.service_name_snapshot}</td><td>{row.barber_name_snapshot}</td>
-            <td>{dateLabel(row.booking_date, true)}<small className="cell-sub">{clock(row.start_time)} WIB</small></td>
-            <td><Status status={row.status} /></td><td><button className="button outline" onClick={() => setSelected(row.id)}>Detail</button></td>
-          </tr>)}</tbody>
-        </table></div>
-        <div className="booking-cards">{list.data.items.map((row) => <article className="admin-card" key={row.id}>
-          <div className="section-row"><h2>{row.customer_name}</h2><Status status={row.status} /></div>
-          <p className="muted">{row.booking_code}</p><p>{row.service_name_snapshot} · {row.barber_name_snapshot}</p>
-          <p>{dateLabel(row.booking_date, true)} · {clock(row.start_time)} WIB</p>
-          <button className="button outline" onClick={() => setSelected(row.id)}>Detail</button>
-        </article>)}</div>
-      </> : <Empty>Tidak ada reservasi yang cocok.</Empty>}
-      <div className="section-row"><span className="muted">{list.data.total} reservasi · Halaman {page}</span>
-        <div className="admin-actions"><button className="button outline" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={18} /> Sebelumnya</button>
-          <button className="button outline" disabled={page * list.data.pageSize >= list.data.total} onClick={() => setPage(page + 1)}>Berikutnya <ChevronRight size={18} /></button></div></div>
-    </>}
+    {barbers.isPending ? <Loading /> : !barbers.isError &&
+      (groups.length ? groups.map((barber) => <BookingGroup key={barber.id + ':' + params} barber={barber}
+        filters={params.toString()} onBooking={setSelected} />) : <Empty>Belum ada capster.</Empty>)}
     {manual && <Modal title="Tambah reservasi walk-in" close={() => setManual(false)}>
       <ReservationForm services={services.data ?? []} close={() => setManual(false)} /></Modal>}
     {selected && <BookingDetail id={selected} close={() => setSelected('')} />}
   </div>
+}
+
+function BookingGroup({ barber, filters, onBooking }: {
+  barber: Barber
+  filters: string
+  onBooking: (id: string) => void
+}) {
+  const [page, setPage] = useState(1)
+  const params = new URLSearchParams(filters)
+  params.set('barber_id', barber.id)
+  params.set('page', String(page))
+  const list = useAdminQuery<BookingList>('/bookings?' + params)
+  const title = /^capster\b/i.test(barber.name) ? barber.name : 'Capster ' + barber.name
+  return <section className="admin-card booking-group" aria-labelledby={'booking-group-' + barber.id}>
+    <div className="section-row booking-group-head">
+      <div className="item-info"><Avatar photo={barber.photo_url} name="" /><h2 id={'booking-group-' + barber.id}>{title}</h2></div>
+      {list.data && <span className="badge">{list.data.total} reservasi</span>}
+    </div>
+    {list.isPending ? <Loading /> : list.isError ? <Failure error={list.error} retry={() => void list.refetch()} /> : <>
+      {list.data.items.length ? <ol className="booking-group-list" role="list" start={(page - 1) * list.data.pageSize + 1}>
+        {list.data.items.map((row, index) => <li key={row.id}>
+          <span className="booking-order" aria-hidden="true">{(page - 1) * list.data.pageSize + index + 1}.</span>
+          <div className="booking-person"><strong>{row.customer_name}</strong>
+            <small className="cell-sub">{row.service_name_snapshot} · {row.booking_code}</small></div>
+          <div className="booking-time"><strong>{clock(row.start_time)}–{clock(row.end_time)} WIB</strong>
+            <small className="cell-sub">{dateLabel(row.booking_date, true)}</small></div>
+          <div className="booking-row-actions"><Status status={row.status} />
+            <button className="button outline" onClick={() => onBooking(row.id)} aria-label={'Detail reservasi ' + row.customer_name}>Detail</button></div>
+        </li>)}
+      </ol> : <p className="muted booking-group-empty">Tidak ada reservasi yang cocok.</p>}
+      {(page > 1 || list.data.total > list.data.pageSize) && <div className="section-row booking-group-pagination">
+        <span className="muted">Halaman {page}</span>
+        <div className="admin-actions">
+          <button className="button outline" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={18} /> Sebelumnya</button>
+          <button className="button outline" disabled={page * list.data.pageSize >= list.data.total} onClick={() => setPage(page + 1)}>Berikutnya <ChevronRight size={18} /></button>
+        </div>
+      </div>}
+    </>}
+  </section>
 }
 function BookingDetail({ id, close }: { id: string; close: () => void }) {
   const data = useAdminQuery<Booking>('/bookings/' + id)

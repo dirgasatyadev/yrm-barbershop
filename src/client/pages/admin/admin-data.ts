@@ -18,6 +18,9 @@ export function useAdminApi() {
     request<T>(path: string, method: string, body?: unknown, key?: string) {
       return api<T>('/admin' + path, { method, body, key, csrf: user.csrf })
     },
+    uploadImage(file: File) {
+      return api<{ url: string }>('/admin/media', { method: 'POST', file, csrf: user.csrf })
+    },
     async saved(message: string) {
       toast(message)
       await Promise.all([client.invalidateQueries({ queryKey: ['admin'] }), client.invalidateQueries({ queryKey: ['public'] })])

@@ -21,9 +21,10 @@ export async function listBookings(db: D1Database, filters: z.infer<typeof booki
   }
   const from = ' FROM bookings' + (conditions.length ? ' WHERE ' + conditions.join(' AND ') : '')
   const pageSize = 15
+  const order = filters.order === 'schedule' ? 'booking_date DESC, start_time ASC, id ASC' : 'booking_date DESC, start_time DESC, id DESC'
   const [count, rows] = await db.batch([
     db.prepare('SELECT COUNT(*) AS total' + from).bind(...params),
-    db.prepare('SELECT *' + from + ' ORDER BY booking_date DESC, start_time DESC, id DESC LIMIT ? OFFSET ?')
+    db.prepare('SELECT *' + from + ' ORDER BY ' + order + ' LIMIT ? OFFSET ?')
       .bind(...params, pageSize, (filters.page - 1) * pageSize),
   ])
   return { total: (count.results[0] as { total: number }).total, items: rows.results as Booking[], page: filters.page, pageSize }
