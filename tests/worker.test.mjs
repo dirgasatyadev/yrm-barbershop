@@ -101,6 +101,17 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
     assert.equal((await admin('/settings', 'PATCH', {}, { Origin: 'https://lain.example' })).status, 403)
   })
   await t.test('foto admin tersimpan di R2 dan pengaturan lama dapat diperbarui sebagian', async () => {
+    const previousLogo = 'https://example.com/old-logo.png'
+    await database.prepare('INSERT INTO business_settings (key, value) VALUES (?, ?)')
+      .bind('business', JSON.stringify({ logo_url: previousLogo })).run()
+    const unchangedLogo = await admin('/settings', 'PATCH', { logo_url: previousLogo, description: 'Profil sebelumnya' })
+    assert.equal(unchangedLogo.status, 200)
+    assert.equal(unchangedLogo.data.logo_url, previousLogo)
+    const linkedLogo = await admin('/settings', 'PATCH', { logo_url: 'https://example.com/new-logo.png' })
+    assert.equal(linkedLogo.status, 400)
+    assert.equal(linkedLogo.error.code, 'PROFILE_UPLOAD_REQUIRED')
+    assert.equal((await admin('/settings', 'PATCH', { logo_url: '/media/' + randomUUID() + '.png' })).status, 400)
+
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/+CkAAAAASUVORK5CYII=', 'base64')
     const upload = (body, headers = {}) => worker.dispatchFetch(origin + '/api/admin/media', {
       method: 'POST', body, headers: { Origin: origin, Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'image/png', ...headers },

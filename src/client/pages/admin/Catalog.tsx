@@ -13,7 +13,7 @@ import type { ImageEdit } from './ImageField.tsx'
 
 type Kind = 'services' | 'barbers' | 'shifts'
 type CatalogItem = Service | Barber | Shift
-type Field = { name: string; label: string; section?: string; type?: 'text' | 'textarea' | 'number' | 'check' | 'time' | 'url' | 'image'; min?: number; max?: number; step?: number; optional?: boolean }
+type Field = { name: string; label: string; section?: string; type?: 'text' | 'textarea' | 'number' | 'check' | 'time' | 'url' | 'image'; min?: number; max?: number; step?: number; optional?: boolean; uploadOnly?: boolean }
 const active: Field = { name: 'is_active', label: 'Aktif', type: 'check' }
 const sort: Field = { name: 'sort_order', label: 'Urutan tampilan', type: 'number', min: 0, max: 9999 }
 const description: Field = { name: 'description', label: 'Deskripsi', type: 'textarea', max: 1000, optional: true }
@@ -46,7 +46,7 @@ const businessFields: Field[] = [
   { name: 'instagram_url', label: 'Tautan Instagram', type: 'url', max: 2048, optional: true },
   { name: 'tiktok_url', label: 'Tautan TikTok', type: 'url', max: 2048, optional: true },
   { name: 'facebook_url', label: 'Tautan Facebook', type: 'url', max: 2048, optional: true },
-  { name: 'logo_url', label: 'Foto profil / logo', section: 'Tampilan beranda', type: 'image' },
+  { name: 'logo_url', label: 'Foto profil / logo', section: 'Tampilan beranda', type: 'image', uploadOnly: true },
   { name: 'cover_url', label: 'Foto sampul', type: 'image' },
   { name: 'background_url', label: 'Foto latar belakang', type: 'image' },
   { name: 'opens', label: 'Jam buka (WIB)', section: 'Reservasi', type: 'time' },
@@ -107,7 +107,7 @@ function Editor({ fields, schema, initial, onSave }: {
       if (field.type === 'check') return <label className="field check-field" key={field.name}><input type="checkbox" name={field.name} defaultChecked={Boolean(value)} />{field.label}</label>
       return <Fragment key={field.name}>
         {field.section && <h2 className="wide editor-section">{field.section}</h2>}
-        {field.type === 'image' ? <ImageField label={field.label} image={images[field.name]} disabled={pending}
+        {field.type === 'image' ? <ImageField label={field.label} image={images[field.name]} disabled={pending} uploadOnly={field.uploadOnly}
           change={(image) => changeImage(field.name, image)} /> :
         <label className={'field ' + (field.type === 'textarea' ? 'wide' : '')}>{field.label}
         {field.type === 'textarea' ? <textarea name={field.name} defaultValue={String(value ?? '')} rows={3} maxLength={field.max} /> :

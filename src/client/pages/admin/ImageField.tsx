@@ -4,11 +4,12 @@ import { imageMimeTypes, isMediaImage, maxImageBytes } from '../../../shared/med
 export type ImageEdit = { url: string; file?: File }
 const acceptedTypes = Object.values<string>(imageMimeTypes)
 
-export function ImageField({ label, image, change, disabled }: {
+export function ImageField({ label, image, change, disabled, uploadOnly = false }: {
   label: string
   image: ImageEdit
   change: (value: ImageEdit) => void
   disabled: boolean
+  uploadOnly?: boolean
 }) {
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
@@ -32,10 +33,10 @@ export function ImageField({ label, image, change, disabled }: {
     </label>
     {src && <img className="media-preview" src={src} alt={'Pratinjau ' + label.toLowerCase()} />}
     {image.file && <p className="muted media-caption">Foto akan diunggah ketika pengaturan disimpan.</p>}
-    <label className="field">URL {label.toLowerCase()} (opsional)
+    {!uploadOnly && <label className="field">URL {label.toLowerCase()} (opsional)
       <input type="text" inputMode="url" placeholder="https://…" maxLength={2048} value={image.url} disabled={disabled}
         onChange={(event) => { setPreview(''); setError(''); change({ url: event.target.value }) }} />
-    </label>
+    </label>}
     {(image.file || image.url) && <button type="button" className="text-button" disabled={disabled}
       onClick={() => { setPreview(''); setError(''); change({ url: '' }) }}>Hapus pilihan {label.toLowerCase()}</button>}
     {error && <p className="message danger" role="alert">{error}</p>}

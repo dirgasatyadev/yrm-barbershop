@@ -1,11 +1,10 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { imageFilenamePattern, imageMimeTypes, maxImageBytes, mediaPrefix } from '../../shared/media.ts'
+import { imageFilenamePattern, imageMimeTypes, imageObjectKey, maxImageBytes, mediaPrefix } from '../../shared/media.ts'
 import type { ImageExtension } from '../../shared/media.ts'
 import type { Env } from '../env.ts'
 import { ApiError, notFound } from '../errors.ts'
 
-const objectKey = (filename: string) => 'public-images/' + filename
 const bytePrefix = (bytes: Uint8Array, marker: number[], offset = 0) =>
   marker.every((value, index) => bytes[index + offset] === value)
 
@@ -27,7 +26,7 @@ uploadImage.post('/', bodyLimit({
     throw new ApiError(400, 'IMAGE_TYPE', 'Unggah foto JPG, PNG, atau WebP yang valid.')
   }
   const filename = crypto.randomUUID() + '.' + extension
-  await c.env.MEDIA.put(objectKey(filename), bytes, { httpMetadata: { contentType: imageMimeTypes[extension] } })
+  await c.env.MEDIA.put(imageObjectKey(filename), bytes, { httpMetadata: { contentType: imageMimeTypes[extension] } })
   return c.json({ data: { url: mediaPrefix + filename } }, 201)
 })
 
@@ -36,7 +35,7 @@ publicMedia.get('/:filename', async (c) => {
   const filename = c.req.param('filename')
   const match = imageFilenamePattern.exec(filename)
   if (!match || !c.env.MEDIA) throw notFound('Gambar tidak ditemukan.')
-  const image = await c.env.MEDIA.get(objectKey(filename))
+  const image = await c.env.MEDIA.get(imageObjectKey(filename))
   if (!image) throw notFound('Gambar tidak ditemukan.')
   return new Response(image.body, {
     headers: {

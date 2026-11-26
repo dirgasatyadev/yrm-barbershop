@@ -61,6 +61,8 @@ for (const action of ['generate', 'rotate', 'copy'] as const) {
   })
 }
 adminApi.get('/settings', async (c) => c.json({ data: (await readState(c.env.DB, today())).settings }))
-adminApi.patch('/settings', async (c) => c.json({ data: await saveBusiness(c.env.DB, c.get('admin').id, parse(settingsPatchSchema, await jsonBody(c))) }))
+adminApi.patch('/settings', async (c) => c.json({
+  data: await saveBusiness(c.env.DB, c.get('admin').id, parse(settingsPatchSchema, await jsonBody(c)), c.env.MEDIA),
+}))
 adminApi.get('/rotation', async (c) => c.json({ data: (await readState(c.env.DB, today())).rotation }))
 adminApi.patch('/rotation', async (c) => c.json({ data: await saveRotation(c.env.DB, c.get('admin').id, parse(rotationSchema, await jsonBody(c))) }))

@@ -8,6 +8,7 @@ export const imageMimeTypes = {
 export type ImageExtension = keyof typeof imageMimeTypes
 export const imageFilenamePattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.(jpg|png|webp)$/
 export const mediaPrefix = '/media/'
+export const imageObjectKey = (filename: string) => 'public-images/' + filename
 
 export function isMediaImage(value: string) {
   return value.startsWith(mediaPrefix) && imageFilenamePattern.test(value.slice(mediaPrefix.length))

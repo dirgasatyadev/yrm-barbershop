@@ -1,5 +1,6 @@
 import { addDays, monday, startStamp, today, weekday } from '../../shared/time.ts'
 import { settingsSchema } from '../../shared/schemas.ts'
+import { imageObjectKey, isMediaImage, mediaPrefix } from '../../shared/media.ts'
 import type { Barber, Booking, Rotation, Schedule, Service, Settings, Shift, WeekCell } from '../../shared/types.ts'
 import { audit, readState, revisionGuard, saveSetting } from '../db/state.ts'
 import type { State } from '../db/state.ts'
@@ -69,9 +70,15 @@ export async function saveCatalog(db: D1Database, actor: string, key: CatalogKey
   return row
 }
 
-export async function saveBusiness(db: D1Database, actor: string, changes: Partial<Settings>) {
+export async function saveBusiness(db: D1Database, actor: string, changes: Partial<Settings>, media?: R2Bucket) {
   const from = today()
   const state = await readState(db, from, '2099-12-31')
+  const logo = changes.logo_url
+  if (logo && logo !== state.settings.logo_url) {
+    if (!isMediaImage(logo) || !await media?.head(imageObjectKey(logo.slice(mediaPrefix.length)))) {
+      throw new ApiError(400, 'PROFILE_UPLOAD_REQUIRED', 'Unggah file foto profil atau logo di Pengaturan.')
+    }
+  }
   const settings = parse(settingsSchema, { ...state.settings, ...changes })
   assertSafe({ ...state, settings }, await upcoming(db, from))
   await mutate(db, state, actor, 'update', 'settings', 'business', [saveSetting(db, 'business', settings)])

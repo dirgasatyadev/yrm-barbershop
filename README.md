@@ -56,7 +56,7 @@ Waktu kedatangan disimpan sebagai tanggal lokal dan jumlah menit sejak pukul 00.
 - Walk-in dapat memakai interval lima menit pada hari berjalan. Reservasi pelanggan memakai interval, rentang tanggal, dan waktu tunggu dari Pengaturan. Penjadwalan ulang admin memilih waktu baru pada masa mendatang dan memakai durasi asli.
 - Pelanggan dapat memeriksa jam tersedia, dibooking, dan tidak tersedia untuk tiap capster. Jika pelanggan memilih jam setelah memfilter satu capster, pilihan itu langsung dipakai pada langkah Data Pelanggan.
 - Halaman **Reservasi** menampilkan daftar bernomor per capster. Setiap daftar memiliki pagination sendiri, dan jam diurutkan dari awal ke akhir pada tanggal yang sama.
-- Di **Pengaturan**, admin dapat mengganti profil, sampul, latar, deskripsi, kontak, dan pesan sebelum konfirmasi. Foto capster diatur di **Capster**. File JPG, PNG, dan WebP maksimal 2 MB diunggah saat formulir disimpan.
+- Di **Pengaturan**, admin dapat mengganti profil, sampul, latar, deskripsi, kontak, dan pesan sebelum konfirmasi. Foto profil atau logo diubah dengan mengunggah file. Foto capster diatur di **Capster**. File JPG, PNG, dan WebP maksimal 2 MB diunggah saat formulir disimpan.
 - Dashboard memakai data D1. Nilai estimasi berasal dari reservasi terkonfirmasi dan selesai hari ini. Nilai layanan selesai memakai snapshot reservasi berstatus selesai. Aplikasi tidak memiliki pencatatan pembayaran.
 
 ## Rute
@@ -130,7 +130,7 @@ Kata sandi admin diisi di terminal saat bootstrap. Skrip deployment tidak menjal
 
 ## Informasi dari pemilik barbershop
 
-Isi logo, deskripsi resmi, alamat, nomor telepon dan WhatsApp beserta kode negara, tautan media sosial, foto capster, harga dan durasi resmi, jam operasional, dan jadwal tim. Admin dapat mengunggah foto ke R2 atau memasukkan URL HTTPS. Wizard menampilkan tombol konsultasi jika nomor WhatsApp sudah diatur. Foto ilustrasi hero dibuat dengan ImageGen dan tersimpan di `public/images/barbershop.webp`.
+Isi logo, deskripsi resmi, alamat, nomor telepon dan WhatsApp beserta kode negara, tautan media sosial, foto capster, harga dan durasi resmi, jam operasional, dan jadwal tim. Unggah foto profil ke R2 dari Pengaturan. Untuk sampul, latar, dan foto capster, admin dapat mengunggah file atau memakai URL HTTPS. Wizard menampilkan tombol konsultasi jika nomor WhatsApp sudah diatur. Foto ilustrasi hero dibuat dengan ImageGen dan tersimpan di `public/images/barbershop.webp`.
 
 <details>
 <summary>Prompt aset hero</summary>
