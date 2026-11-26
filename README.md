@@ -107,6 +107,12 @@ Tes unit memeriksa perhitungan WIB, rotasi, libur, batas durasi, dan interval. T
 
 ## Deployment ke Cloudflare Workers
 
+Cloudflare Workers Builds menerbitkan setiap push atau merge ke branch `main` ke Worker `yrm-barber` di https://yrm.brantzy.com. Lihat hasil build di Cloudflare pada Worker `yrm-barber` → **Deployments**. Konfigurasi repositori dan perintah `npm run deploy` ada di **Settings → Builds**.
+
+Jika perubahan menyertakan migrasi D1, periksa migrasi secara lokal dan terapkan ke database produksi dengan `npm run db:migrate:remote` sebelum push yang membutuhkannya.
+
+### Penyediaan awal dan deploy manual
+
 Langkah berikut menulis ke akun Cloudflare yang dipilih operator.
 
 1. Jalankan `npx wrangler login`.
