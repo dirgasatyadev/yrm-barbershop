@@ -112,6 +112,8 @@ p { line-height: 1.65; }
 .team-card h3 { margin: 3px 0 0; }
 .avatar { display: inline-grid; place-items: center; width: 62px; height: 62px; flex: none; color: var(--gold); background: #29241b; border: 1px solid #4b3e26; border-radius: 13px; overflow: hidden; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
+button.photo-trigger:not(:disabled) { cursor: zoom-in; }
+.photo-trigger:hover { border-color: var(--gold); }
 .badge { display: inline-flex; width: fit-content; border: 1px solid #424242; background: #252525; color: #dadada; border-radius: 999px; padding: 3px 9px; font-weight: 680; font-size: .75rem; }
 .badge.good { background: #10251a; border-color: #234c32; color: #8ce8aa; }
 .badge.warn { background: #302418; border-color: #593d24; color: #edc086; }
@@ -185,6 +187,12 @@ input[type="checkbox"] { width: 18px; min-height: 18px; accent-color: var(--gold
 .dialog::backdrop { background: #000b; }
 .dialog-content { padding: clamp(14px, 4vw, 27px); display: grid; gap: 15px; }
 .dialog h2 { font-size: 1.4rem; }
+.photo-dialog { width: min(100% - 24px, 780px); background: #151515; }
+.photo-dialog .dialog-content { gap: 12px; }
+.photo-dialog header { flex-wrap: nowrap; }
+.photo-dialog h2 { margin: 0; overflow-wrap: anywhere; }
+.photo-dialog .icon-button { flex: none; }
+.photo-full { display: block; width: auto; max-width: 100%; max-height: 72dvh; margin-inline: auto; object-fit: contain; border-radius: 8px; }
 @media (max-width: 640px) {
   .shell { width: calc(100% - 30px); }
   .customer-hero { grid-template-columns: 1fr; }

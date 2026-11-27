@@ -145,7 +145,7 @@ export default function BookingWizard() {
           {config.whatsapp && <a className="button outline whatsapp" href={whatsappUrl(config.whatsapp)} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Konsultasi WhatsApp</a>}
         </>}
         {effectiveStep === 3 && <form className="fields" onSubmit={(event) => { event.preventDefault(); if (validateCustomer()) go(4) }}>
-          <div className="selected-capster"><Avatar photo={selectedBarber?.photo_url ?? ''} name="" />
+          <div className="selected-capster"><Avatar photo={selectedBarber?.photo_url ?? ''} name={selectedBarber?.name ?? 'capster'} />
             <div><span>Capster</span><strong>{selectedBarber?.name ?? 'Capster Mana Saja'}</strong></div>
           </div>
           <label className="field">Nama pelanggan<input required minLength={2} maxLength={100} autoComplete="name" value={fields.customer_name}

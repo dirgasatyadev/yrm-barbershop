@@ -56,7 +56,7 @@ function Login() {
     finally { setPending(false) }
   }
   return <main className="login-page"><div className="login-card">
-    <Link to="/"><Brand settings={config} /></Link>
+    <Brand settings={config} to="/" />
     <div><h1>Masuk sebagai admin</h1><p className="muted">Kelola reservasi dan jadwal capster.</p></div>
     {error && <p className="message danger" role="alert">{error}</p>}
     <form className="fields" onSubmit={(e) => void login(e)}>
@@ -101,7 +101,7 @@ function AdminShell({ user }: { user: AdminUser }) {
       <div className="admin-top-actions"><BookingNotifications /><Link to="/" className="button outline">Lihat Website</Link></div>
     </header>
     <aside className={'admin-sidebar ' + (open ? 'open' : '')} id="admin-sidebar">
-      <Link to="/admin/dashboard" className="side-brand" onClick={() => setOpen(false)}><Brand settings={config} /></Link>
+      <div className="side-brand"><Brand settings={config} to="/admin/dashboard" onNavigate={() => setOpen(false)} /></div>
       <nav aria-label="Navigasi admin">{links.map(([path, title, Icon]) => <NavLink key={path} to={'/admin/' + path} onClick={() => setOpen(false)}>
         <Icon size={19} /> {title}
       </NavLink>)}</nav>

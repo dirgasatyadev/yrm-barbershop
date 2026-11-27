@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { imageMimeTypes, isMediaImage, maxImageBytes } from '../../../shared/media.ts'
+import { PhotoPreview } from '../../components/ui.tsx'
 
 export type ImageEdit = { url: string; file?: File }
 const acceptedTypes = Object.values<string>(imageMimeTypes)
@@ -31,7 +32,7 @@ export function ImageField({ label, image, change, disabled, uploadOnly = false 
         change({ url: image.url, file })
       }} />
     </label>
-    {src && <img className="media-preview" src={src} alt={'Pratinjau ' + label.toLowerCase()} />}
+    {src && <PhotoPreview key={src} className="media-preview" src={src} title={label} />}
     {image.file && <p className="muted media-caption">Foto akan diunggah ketika pengaturan disimpan.</p>}
     {!uploadOnly && <label className="field">URL {label.toLowerCase()} (opsional)
       <input type="text" inputMode="url" placeholder="https://…" maxLength={2048} value={image.url} disabled={disabled}

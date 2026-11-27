@@ -27,7 +27,7 @@ export default function CustomerHome() {
     </section>
     <section className="customer-schedule" aria-labelledby="schedule-title">
       <div className="customer-profile">
-        <Avatar photo={business?.logo_url ?? ''} name="" />
+        <Avatar photo={business?.logo_url ?? ''} name={'profil ' + (business?.name ?? 'YRM Barber')} />
         <div><h2>{business?.name ?? 'YRM Barber'}</h2>{business?.description && <p>{business.description}</p>}</div>
       </div>
       <h2 id="schedule-title">Jadwal Capster Hari Ini</h2>
@@ -36,7 +36,7 @@ export default function CustomerHome() {
         !barbers.data.length ? <Empty>Belum ada capster aktif.</Empty> :
         <ul className="customer-schedule-list">
           {barbers.data.map(({ id, name, photo_url, description, work }) => <li key={id}>
-            <Avatar photo={photo_url} name="" />
+            <Avatar photo={photo_url} name={name} />
             <div><span className="schedule-name">{name}</span>{description && <p className="schedule-description">{description}</p>}</div>
             {work.is_day_off ? <span className="badge schedule-status">{work.label}</span> :
               <span className="schedule-hours"><Clock3 size={15} aria-hidden="true" /> {clock(work.start)}–{clock(work.end)} WIB</span>}

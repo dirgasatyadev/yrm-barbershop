@@ -65,7 +65,7 @@ function BookingGroup({ barber, filters, onBooking }: {
   const title = /^capster\b/i.test(barber.name) ? barber.name : 'Capster ' + barber.name
   return <section className="admin-card booking-group" aria-labelledby={'booking-group-' + barber.id}>
     <div className="section-row booking-group-head">
-      <div className="item-info"><Avatar photo={barber.photo_url} name="" /><h2 id={'booking-group-' + barber.id}>{title}</h2></div>
+      <div className="item-info"><Avatar photo={barber.photo_url} name={barber.name} /><h2 id={'booking-group-' + barber.id}>{title}</h2></div>
       {list.data && <span className="badge">{list.data.total} reservasi</span>}
     </div>
     {list.isPending ? <Loading /> : list.isError ? <Failure error={list.error} retry={() => void list.refetch()} /> : <>
