@@ -19,6 +19,10 @@ export type Booking = BookingSummary & {
   created_at: string; updated_at: string;
 }
 export type BookingReceipt = BookingSummary & { confirmation: string }
+export type BookingNotification = Pick<BookingSummary, 'booking_code' | 'customer_name' | 'barber_name_snapshot' | 'booking_date' | 'start_time'> & {
+  id: number; booking_id: string;
+}
+export type BookingInbox = { unread: number; last_seen_id: number; items: BookingNotification[] }
 export type Work = { start: number; end: number; label: string; is_day_off: false } | { is_day_off: true; label: string }
 export type CapsterStatus = 'available' | 'booked' | 'off' | 'outside'
 export type TimeSlot = { start: number; end: number; state: 'available' | 'full' | 'unavailable'; barbers: { id: string; status: CapsterStatus }[] }

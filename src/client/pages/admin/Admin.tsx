@@ -11,6 +11,7 @@ import { useSettings } from '../public/public-data.ts'
 import { AdminContext } from './admin-data.ts'
 import Dashboard from './Dashboard.tsx'
 import Bookings from './Bookings.tsx'
+import BookingNotifications from './BookingNotifications.tsx'
 import { CatalogPage, SettingsPage } from './Catalog.tsx'
 import Schedules from './Schedules.tsx'
 
@@ -97,7 +98,7 @@ function AdminShell({ user }: { user: AdminUser }) {
       </button>
       <span className="admin-top-brand"><Brand settings={config} /></span>
       <span className="admin-top-title">Panel admin</span>
-      <Link to="/" className="button outline">Lihat Website</Link>
+      <div className="admin-top-actions"><BookingNotifications /><Link to="/" className="button outline">Lihat Website</Link></div>
     </header>
     <aside className={'admin-sidebar ' + (open ? 'open' : '')} id="admin-sidebar">
       <Link to="/admin/dashboard" className="side-brand" onClick={() => setOpen(false)}><Brand settings={config} /></Link>

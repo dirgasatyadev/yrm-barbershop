@@ -31,9 +31,11 @@ function receipt(booking: Booking, confirmation: string): BookingReceipt {
     price_snapshot, duration_snapshot, booking_date, start_time, end_time, status, confirmation }
 }
 async function replay(db: D1Database, key: string, fingerprint: string) {
-  const existing = await db.prepare('SELECT fingerprint, response FROM booking_idempotency WHERE key = ?')
-    .bind(key).first<{ fingerprint: string; response: string }>()
+  const existing = await db.prepare(`SELECT fingerprint, response FROM booking_idempotency WHERE key = ?
+    UNION ALL SELECT NULL, NULL FROM deleted_booking_requests WHERE key = ?`)
+    .bind(key, key).first<{ fingerprint: string | null; response: string | null }>()
   if (!existing) return null
+  if (existing.response === null) throw new ApiError(409, 'BOOKING_DELETED', 'Reservasi ini sudah dihapus. Buat reservasi baru jika diperlukan.')
   if (existing.fingerprint !== fingerprint) throw conflict('Kunci permintaan sudah digunakan untuk data yang berbeda.')
   return JSON.parse(existing.response) as BookingReceipt
 }
@@ -41,9 +43,9 @@ export async function createBooking(db: D1Database, input: BookingInput, request
   const key = await digest((actor ?? 'public') + ':' + requestKey)
   const fingerprint = await digest(JSON.stringify(input))
   for (let attempt = 0; attempt < 5; attempt++) {
+    const state = await readState(db, input.date)
     const previous = await replay(db, key, fingerprint)
     if (previous) return { data: previous, replayed: true }
-    const state = await readState(db, input.date)
     const busy = await busyUnits(db, input.date)
     const service = state.services.find((item) => item.id === input.service_id && item.is_active)
     if (!service) throw notFound('Layanan tidak tersedia.')
@@ -86,7 +88,8 @@ export async function createBooking(db: D1Database, input: BookingInput, request
       await db.batch([revisionGuard(db, state.revision), insert, lock(db, booking),
         db.prepare('INSERT INTO booking_idempotency (key, fingerprint, response, booking_id) VALUES (?, ?, ?, ?)')
           .bind(key, fingerprint, JSON.stringify(data), booking.id),
-        ...(actor ? [audit(db, actor, 'create', 'booking', booking.id)] : []),
+        actor ? audit(db, actor, 'create', 'booking', booking.id) :
+          db.prepare('INSERT INTO booking_notifications (booking_id) VALUES (?)').bind(booking.id),
       ])
       return { data, replayed: false }
     } catch (error) {
@@ -101,6 +104,22 @@ export async function getBooking(db: D1Database, id: string) {
   const booking = await db.prepare('SELECT * FROM bookings WHERE id = ?').bind(id).first<Booking>()
   if (!booking) throw notFound('Reservasi tidak ditemukan.')
   return booking
+}
+export async function deleteBooking(db: D1Database, id: string, actor: string) {
+  const revision = await db.prepare('SELECT revision FROM state_version WHERE id = 1').first<number>('revision')
+  if (revision === null) throw new Error('state_version missing; apply D1 migrations')
+  await getBooking(db, id)
+  try {
+    await db.batch([revisionGuard(db, revision),
+      db.prepare('INSERT INTO deleted_booking_requests (key) SELECT key FROM booking_idempotency WHERE booking_id = ?').bind(id),
+      db.prepare('DELETE FROM bookings WHERE id = ?').bind(id),
+      audit(db, actor, 'delete', 'booking', id),
+    ])
+  } catch (error) {
+    if (dbRace(error)) throw conflict()
+    throw error
+  }
+  return { id }
 }
 export async function updateBooking(db: D1Database, id: string, actor: string, update: { status: BookingStatus } | { date: string; start: number; barber_id: string }) {
   const date = 'status' in update ? today() : update.date

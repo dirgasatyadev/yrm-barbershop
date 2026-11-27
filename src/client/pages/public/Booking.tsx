@@ -90,6 +90,7 @@ export default function BookingWizard() {
       setMessage(detail)
       toast(detail, 'error')
       if (error instanceof RequestError && error.status === 409) {
+        if (error.code === 'BOOKING_DELETED') key.current = null
         setStart(null)
         setCapster(null)
         changeStep(1)

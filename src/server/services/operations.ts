@@ -70,6 +70,22 @@ export async function saveCatalog(db: D1Database, actor: string, key: CatalogKey
   return row
 }
 
+const catalogReferences = {
+  services: 'SELECT 1 FROM bookings WHERE service_id = ? LIMIT 1',
+  barbers: 'SELECT 1 FROM bookings WHERE barber_id = ?1 UNION ALL SELECT 1 FROM barber_schedules WHERE barber_id = ?1 LIMIT 1',
+  shifts: 'SELECT 1 FROM barber_schedules WHERE shift_id = ? LIMIT 1',
+} as const
+
+export async function deleteCatalog(db: D1Database, actor: string, key: CatalogKey, id: string) {
+  const state = await readState(db, today())
+  if (!state[key].some((row) => row.id === id)) throw notFound()
+  const linked = await db.prepare(catalogReferences[key]).bind(id).first()
+  const inRotation = state.rotation.rules.some((rule) => key === 'barbers' ? rule.barber_id === id : key === 'shifts' && rule.shift_id === id)
+  if (linked || inRotation) throw conflict('Data masih dipakai dalam reservasi, jadwal, atau pola rotasi. Gunakan Nonaktifkan untuk menyimpan riwayatnya.')
+  await mutate(db, state, actor, 'delete', key, id, [db.prepare('DELETE FROM ' + key + ' WHERE id = ?').bind(id)])
+  return { id }
+}
+
 export async function saveBusiness(db: D1Database, actor: string, changes: Partial<Settings>, media?: R2Bucket) {
   const from = today()
   const state = await readState(db, from, '2099-12-31')

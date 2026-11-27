@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { z } from 'zod'
@@ -10,6 +10,7 @@ import { errorText } from '../../lib/api.ts'
 import { useAdminApi, useAdminQuery } from './admin-data.ts'
 import { ImageField } from './ImageField.tsx'
 import type { ImageEdit } from './ImageField.tsx'
+import { DeleteDialog } from './DeleteDialog.tsx'
 
 type Kind = 'services' | 'barbers' | 'shifts'
 type CatalogItem = Service | Barber | Shift
@@ -133,6 +134,7 @@ export function CatalogPage({ kind }: { kind: Kind }) {
   const admin = useAdminApi()
   const [edit, setEdit] = useState<CatalogItem | 'new' | null>(null)
   const [removal, setRemoval] = useState<CatalogItem | null>(null)
+  const [deletion, setDeletion] = useState<CatalogItem | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   async function deactivate() {
@@ -152,10 +154,13 @@ export function CatalogPage({ kind }: { kind: Kind }) {
       !data.data.length ? <Empty>Belum ada {config.singular}.</Empty> : <div className="admin-card">
       <ul className="data-list catalog-list">{data.data.map((item) => <li key={item.id}>
         <div className="item-info">{'photo_url' in item && <Avatar photo={item.photo_url} name={item.name} />}
-          <div><strong>{item.name}</strong><small>{detail(item)}</small></div></div>
-        <div className="admin-actions"><span className={'badge ' + (item.is_active ? 'good' : '')}>{item.is_active ? 'Aktif' : 'Nonaktif'}</span>
+          <div><div className="catalog-title"><strong>{item.name}</strong><span className={'badge ' + (item.is_active ? 'good' : '')}>
+            {item.is_active ? 'Aktif' : 'Nonaktif'}</span></div><small>{detail(item)}</small></div></div>
+        <div className="admin-actions record-actions">
           <button className="button outline" onClick={() => setEdit(item)}>Ubah</button>
-          {item.is_active && <button className="button outline danger-button" onClick={() => { setError(''); setRemoval(item) }}>Nonaktifkan</button>}</div>
+          {item.is_active && <button className="button outline" onClick={() => { setError(''); setRemoval(item) }}>Nonaktifkan</button>}
+          <button className="button outline danger-button" aria-label={'Hapus ' + item.name} onClick={() => setDeletion(item)}>
+            <Trash2 size={16} aria-hidden="true" /> Hapus</button></div>
       </li>)}</ul></div>}
     {edit && <Modal title={(edit === 'new' ? 'Tambah ' : 'Ubah ') + config.singular} close={() => setEdit(null)}>
       <Editor fields={config.fields} schema={config.schema} initial={edit === 'new' ? config.initial : edit}
@@ -171,6 +176,9 @@ export function CatalogPage({ kind }: { kind: Kind }) {
       <div className="admin-actions"><button className="button outline" onClick={() => setRemoval(null)}>Kembali</button>
         <button className="button outline danger-button" disabled={pending} onClick={() => void deactivate()}>Nonaktifkan</button></div>
     </Modal>}
+    {deletion && <DeleteDialog path={'/' + kind + '/' + deletion.id + '?permanent=1'} title={'Hapus ' + config.singular + '?'}
+      message={`${deletion.name} akan dihapus permanen jika tidak terhubung ke reservasi, jadwal, atau pola rotasi.`}
+      success="Data berhasil dihapus." close={() => setDeletion(null)} />}
   </div>
 }
 export function SettingsPage() {

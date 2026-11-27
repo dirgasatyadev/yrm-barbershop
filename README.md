@@ -56,6 +56,8 @@ Waktu kedatangan disimpan sebagai tanggal lokal dan jumlah menit sejak pukul 00.
 - Walk-in dapat memakai interval lima menit pada hari berjalan. Reservasi pelanggan memakai interval, rentang tanggal, dan waktu tunggu dari Pengaturan. Penjadwalan ulang admin memilih waktu baru pada masa mendatang dan memakai durasi asli.
 - Pelanggan dapat memeriksa jam tersedia, dibooking, dan tidak tersedia untuk tiap capster. Jika pelanggan memilih jam setelah memfilter satu capster, pilihan itu langsung dipakai pada langkah Data Pelanggan.
 - Halaman **Reservasi** menampilkan daftar bernomor per capster. Setiap daftar memiliki pagination sendiri, dan jam diurutkan dari awal ke akhir pada tanggal yang sama.
+- Tombol **Hapus** di **Reservasi**, **Layanan**, **Capster**, dan **Shift Kerja** membuka konfirmasi. Penghapusan reservasi melepas slot dan mengeluarkan data dari laporan. Entri katalog yang masih terhubung ke reservasi, jadwal, atau rotasi dapat dinonaktifkan.
+- Lonceng admin menampilkan reservasi online baru. Panel memeriksa notifikasi setiap 15 detik saat tab aktif dan menyimpan status baca per akun.
 - Di **Pengaturan**, admin dapat mengganti profil, sampul, latar, deskripsi, kontak, dan pesan sebelum konfirmasi. Foto profil atau logo diubah dengan mengunggah file. Foto capster diatur di **Capster**. File JPG, PNG, dan WebP maksimal 2 MB diunggah saat formulir disimpan.
 - Dashboard memakai data D1. Nilai estimasi berasal dari reservasi terkonfirmasi dan selesai hari ini. Nilai layanan selesai memakai snapshot reservasi berstatus selesai. Aplikasi tidak memiliki pencatatan pembayaran.
 
@@ -79,7 +81,9 @@ Seluruh endpoint berikut memakai prefix `/api`.
 | POST | `/auth/login`, `/auth/logout` |
 | GET | `/admin/dashboard`, `/admin/availability`, `/admin/bookings`, `/admin/bookings/:id` |
 | POST | `/admin/bookings`, `/admin/bookings/:id/cancel` |
-| PATCH | `/admin/bookings/:id` |
+| PATCH, DELETE | `/admin/bookings/:id` |
+| GET | `/admin/booking-notifications` |
+| POST | `/admin/booking-notifications/read` |
 | GET, POST | `/admin/services`, `/admin/barbers`, `/admin/shifts` |
 | PATCH, DELETE | `/admin/services/:id`, `/admin/barbers/:id`, `/admin/shifts/:id` |
 | GET, POST | `/admin/schedules` |
@@ -89,6 +93,8 @@ Seluruh endpoint berikut memakai prefix `/api`.
 | POST | `/admin/media` (unggah foto, sesi admin dan CSRF) |
 
 URL foto dari R2 dilayani melalui `/media/:filename` di luar prefix API.
+
+Tambahkan `?permanent=1` pada permintaan `DELETE` katalog untuk menghapus entri yang belum terhubung ke data lain. Permintaan `DELETE` katalog tanpa parameter ini menonaktifkan entri.
 
 Sukses memakai `{ data: ... }`; galat memakai `{ error: { code, message, details? } }`. API daftar reservasi menerima `q`, `date`, `barber_id`, `service_id`, `status`, dan `page`. Ketersediaan menerima `date`, `service_id`, dan `barber_id` opsional. Permintaan yang membuat reservasi harus menyertakan `Idempotency-Key` berupa UUID. Mutasi admin memakai cookie sesi dan `X-CSRF-Token` dari login atau `/auth/me`. Semua permintaan tulis browser dilindungi oleh pengecekan Origin.
 

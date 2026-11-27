@@ -1,20 +1,23 @@
 import { CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDeferredValue, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { bookingSchema } from '../../../shared/schemas.ts'
+import { useSearchParams } from 'react-router'
+import { bookingSchema, identifier } from '../../../shared/schemas.ts'
 import { clock, dateLabel, rupiah, startStamp, today } from '../../../shared/time.ts'
 import type { Availability, Barber, Booking, Service } from '../../../shared/types.ts'
 import { Avatar, Empty, Failure, Loading, Modal } from '../../components/ui.tsx'
-import { errorText } from '../../lib/api.ts'
+import { errorText, RequestError } from '../../lib/api.ts'
 import { useAdminApi, useAdminQuery } from './admin-data.ts'
 import { Status, statusLabels } from './Dashboard.tsx'
+import { DeleteBookingButton } from './DeleteDialog.tsx'
 
 type BookingList = { items: Booking[]; total: number; page: number; pageSize: number }
 const initialFilters = { q: '', date: '', status: '', barber_id: '', service_id: '' }
 export default function Bookings() {
   const [filters, setFilters] = useState(initialFilters)
   const applied = useDeferredValue(filters)
-  const [selected, setSelected] = useState('')
+  const [search, setSearch] = useSearchParams()
+  const selected = identifier.safeParse(search.get('booking')).data
   const [manual, setManual] = useState(false)
   const barbers = useAdminQuery<Barber[]>('/barbers')
   const services = useAdminQuery<Service[]>('/services')
@@ -24,6 +27,7 @@ export default function Bookings() {
   function filter(key: keyof typeof filters, value: string) {
     setFilters({ ...filters, [key]: value })
   }
+  const closeBooking = () => setSearch({}, { replace: true })
   return <div className="admin-stack">
     <header className="section-row admin-heading"><h1>Reservasi</h1>
       <button className="button gold" onClick={() => setManual(true)}><CalendarPlus size={18} /> Tambah Walk-in</button></header>
@@ -41,10 +45,10 @@ export default function Bookings() {
     {(barbers.isError || services.isError) && <Failure error={barbers.error ?? services.error} retry={() => { void barbers.refetch(); void services.refetch() }} />}
     {barbers.isPending ? <Loading /> : !barbers.isError &&
       (groups.length ? groups.map((barber) => <BookingGroup key={barber.id + ':' + params} barber={barber}
-        filters={params.toString()} onBooking={setSelected} />) : <Empty>Belum ada capster.</Empty>)}
+        filters={params.toString()} onBooking={(id) => setSearch({ booking: id }, { replace: true })} />) : <Empty>Belum ada capster.</Empty>)}
     {manual && <Modal title="Tambah reservasi walk-in" close={() => setManual(false)}>
       <ReservationForm services={services.data ?? []} close={() => setManual(false)} /></Modal>}
-    {selected && <BookingDetail id={selected} close={() => setSelected('')} />}
+    {selected && <BookingDetail key={selected} id={selected} close={closeBooking} />}
   </div>
 }
 
@@ -72,8 +76,10 @@ function BookingGroup({ barber, filters, onBooking }: {
             <small className="cell-sub">{row.service_name_snapshot} · {row.booking_code}</small></div>
           <div className="booking-time"><strong>{clock(row.start_time)}–{clock(row.end_time)} WIB</strong>
             <small className="cell-sub">{dateLabel(row.booking_date, true)}</small></div>
-          <div className="booking-row-actions"><Status status={row.status} />
-            <button className="button outline" onClick={() => onBooking(row.id)} aria-label={'Detail reservasi ' + row.customer_name}>Detail</button></div>
+          <div className="booking-status"><Status status={row.status} /></div>
+          <div className="admin-actions record-actions booking-row-actions">
+            <button className="button outline" onClick={() => onBooking(row.id)} aria-label={'Detail reservasi ' + row.customer_name}>Detail</button>
+            <DeleteBookingButton booking={row} onDeleted={() => { if (page > 1 && list.data.items.length === 1) setPage(page - 1) }} /></div>
         </li>)}
       </ol> : <p className="muted booking-group-empty">Tidak ada reservasi yang cocok.</p>}
       {(page > 1 || list.data.total > list.data.pageSize) && <div className="section-row booking-group-pagination">
@@ -118,14 +124,14 @@ function BookingDetail({ id, close }: { id: string; close: () => void }) {
           <dt>Layanan</dt><dd>{data.data.service_name_snapshot}</dd><dt>Capster</dt><dd>{data.data.barber_name_snapshot}</dd>
           <dt>Waktu</dt><dd>{dateLabel(data.data.booking_date)} · {clock(data.data.start_time)}–{clock(data.data.end_time)} WIB</dd>
           <dt>Harga</dt><dd>{rupiah(data.data.price_snapshot)}</dd><dt>Status</dt><dd><Status status={data.data.status} /></dd></dl>
-        {data.data.status === 'confirmed' && <div className="admin-actions">
+        <div className="admin-actions">{data.data.status === 'confirmed' && <>
           <button className="button outline" onClick={() => setMode('reschedule')}>Ubah Jadwal</button>
           {startStamp(data.data.booking_date, data.data.start_time) <= Date.now() && <>
             <button className="button outline" disabled={pending} onClick={() => void setStatus('completed')}>Tandai Selesai</button>
             <button className="button outline" disabled={pending} onClick={() => void setStatus('no_show')}>Tandai Tidak Hadir</button>
           </>}
           <button className="button outline danger-button" onClick={() => { setError(''); setMode('cancel') }}>Batalkan</button>
-        </div>}
+        </>}<DeleteBookingButton booking={data.data} onDeleted={close} /></div>
       </>}
   </Modal>
 }
@@ -165,6 +171,7 @@ function ReservationForm({ booking, services, close }: { booking?: Booking; serv
       close()
       await admin.saved(booking ? 'Jadwal reservasi diperbarui.' : 'Reservasi walk-in ditambahkan.')
     } catch (err) {
+      if (err instanceof RequestError && err.code === 'BOOKING_DELETED') idempotency.current = null
       setError(errorText(err)); void availability.refetch()
     } finally { setPending(false) }
   }

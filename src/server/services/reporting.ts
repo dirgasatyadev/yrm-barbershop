@@ -1,9 +1,26 @@
-import type { Booking, Dashboard } from '../../shared/types.ts'
+import type { Booking, BookingInbox, BookingNotification, Dashboard } from '../../shared/types.ts'
 import { addDays, today } from '../../shared/time.ts'
 import { readState } from '../db/state.ts'
 import { workFor } from './calendar.ts'
 import type { z } from 'zod'
 import type { bookingFilter } from '../../shared/schemas.ts'
+
+export async function bookingInbox(db: D1Database, adminId: string): Promise<BookingInbox> {
+  const [summary, entries] = await db.batch([
+    db.prepare(`WITH seen AS (SELECT COALESCE((SELECT last_seen_id FROM admin_booking_inbox WHERE admin_id = ?), 0) AS last_seen_id)
+      SELECT last_seen_id, (SELECT COUNT(*) FROM booking_notifications WHERE id > seen.last_seen_id) AS unread FROM seen`).bind(adminId),
+    db.prepare(`SELECT n.id, n.booking_id, b.booking_code, b.customer_name, b.barber_name_snapshot, b.booking_date, b.start_time
+      FROM booking_notifications n JOIN bookings b ON b.id = n.booking_id ORDER BY n.id DESC LIMIT 12`),
+  ])
+  return { ...(summary.results[0] as Omit<BookingInbox, 'items'>), items: entries.results as BookingNotification[] }
+}
+
+export async function markBookingNotificationsRead(db: D1Database, adminId: string, through: number) {
+  await db.prepare(`INSERT INTO admin_booking_inbox (admin_id, last_seen_id)
+    SELECT ?, COALESCE(MAX(id), 0) FROM booking_notifications WHERE id <= ?
+    ON CONFLICT (admin_id) DO UPDATE SET last_seen_id = MAX(last_seen_id, excluded.last_seen_id)`).bind(adminId, through).run()
+  return bookingInbox(db, adminId)
+}
 
 export async function listBookings(db: D1Database, filters: z.infer<typeof bookingFilter>) {
   const conditions: string[] = []

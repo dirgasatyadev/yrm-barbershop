@@ -222,6 +222,7 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
       schedule_date: current, start_time: null, end_time: null, is_day_off: false })).status, 201)
     const manual = await admin('/bookings', 'POST', { ...booking(barber.data.id, 605), date: current })
     assert.equal(manual.status, 201, JSON.stringify(manual.error))
+    assert.equal((await admin('/booking-notifications')).data.items.some((item) => item.booking_id === manual.data.id), false)
     const report = await admin('/dashboard')
     assert.equal(report.data.total, 1)
     assert.equal(report.data.estimate, 50000)
@@ -237,6 +238,53 @@ test('integrasi API Worker, autentikasi, kalender, dan transaksi D1', { timeout:
       assert.equal(applied.status, 200, JSON.stringify(applied.error))
     }
     assert.equal((await admin('/schedules?week=' + week)).data.cells.length, 28)
+  })
+  await t.test('notifikasi booking online dan penghapusan terkonfirmasi melepas slot tanpa mengulang booking lama', async () => {
+    const path = '/booking-notifications'
+    assert.equal((await call('/admin' + path)).status, 401)
+    const nextSlot = async () => (await slots()).find((slot) => slot.barbers.some((b) => b.id === 'capster-a' && b.status === 'available')).start
+    const before = (await admin(path)).data
+    const input = booking('capster-a', await nextSlot())
+    const key = randomUUID()
+    const incoming = await post(input, key)
+    assert.equal(incoming.status, 201)
+    assert.equal((await post(input, key)).status, 200)
+    const inbox = (await admin(path)).data
+    assert.equal(inbox.unread, before.unread + 1)
+    assert.equal(inbox.items[0].booking_id, incoming.data.id)
+    assert.equal(inbox.items[0].booking_code, incoming.data.booking_code)
+    const secondBooking = await post(booking('capster-a', await nextSlot()))
+    assert.equal(secondBooking.status, 201)
+    const marked = await admin(path + '/read', 'POST', { through: inbox.items[0].id })
+    assert.equal(marked.data.unread, 1)
+    assert.equal(marked.data.items[0].booking_id, secondBooking.data.id)
+    const target = '/bookings/' + incoming.data.id
+    assert.equal((await admin(target, 'DELETE', undefined, { 'X-CSRF-Token': 'keliru' })).status, 403)
+    assert.equal((await admin(target, 'DELETE')).status, 200)
+    assert.equal((await admin(target)).status, 404)
+    assert.equal((await admin('/bookings?q=' + incoming.data.booking_code)).data.total, 0)
+    assert.equal((await slots()).find((slot) => slot.start === input.start).barbers.find((b) => b.id === 'capster-a').status, 'available')
+    assert.equal((await post(input, key)).error.code, 'BOOKING_DELETED')
+    const secondTarget = '/bookings/' + secondBooking.data.id
+    assert.equal((await admin(secondTarget + '/cancel', 'POST')).status, 200)
+    assert.equal((await admin(secondTarget, 'DELETE')).status, 200)
+    const after = (await admin(path)).data
+    assert.equal(after.unread, 0)
+    assert.ok(after.items.every((item) => item.booking_id !== incoming.data.id && item.booking_id !== secondBooking.data.id))
+  })
+  await t.test('hapus layanan, capster dan shift yang belum dipakai, serta lindungi referensi yang masih berlaku', async () => {
+    const items = [
+      ['/services', { name: 'Layanan sementara', description: '', price: 0, duration_minutes: 20, sort_order: 0, is_active: true }, 'potong-rambut'],
+      ['/barbers', { name: 'Capster sementara', description: '', photo_url: '', sort_order: 0, is_active: true }, 'capster-a'],
+      ['/shifts', { name: 'Shift sementara', start_time: 540, end_time: 720, is_active: true }, 'shift-a'],
+    ]
+    for (const [path, record, usedId] of items) {
+      assert.equal((await admin(path + '/' + usedId + '?permanent=1', 'DELETE')).status, 409)
+      const created = await admin(path, 'POST', record)
+      assert.equal(created.status, 201)
+      assert.equal((await admin(path + '/' + created.data.id + '?permanent=1', 'DELETE')).status, 200)
+      assert.ok((await admin(path)).data.every((item) => item.id !== created.data.id))
+    }
   })
   await t.test('tutup online, batas laju dan ukuran kiriman', async () => {
     const settings = (await admin('/settings')).data

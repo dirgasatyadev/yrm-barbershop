@@ -7,9 +7,9 @@ import { readState } from '../db/state.ts'
 import type { Env } from '../env.ts'
 import { parse } from '../errors.ts'
 import { authenticate, csrf } from '../middleware/security.ts'
-import { createBooking, dayAvailability, getBooking, updateBooking } from '../services/bookings.ts'
-import { getWeek, runWeek, saveBusiness, saveCatalog, saveRotation, saveSchedule } from '../services/operations.ts'
-import { dashboard, listBookings } from '../services/reporting.ts'
+import { createBooking, dayAvailability, deleteBooking, getBooking, updateBooking } from '../services/bookings.ts'
+import { deleteCatalog, getWeek, runWeek, saveBusiness, saveCatalog, saveRotation, saveSchedule } from '../services/operations.ts'
+import { bookingInbox, dashboard, listBookings, markBookingNotificationsRead } from '../services/reporting.ts'
 import { jsonBody } from './helpers.ts'
 import { uploadImage } from './media.ts'
 
@@ -17,6 +17,11 @@ export const adminApi = new Hono<Env>()
 adminApi.use('*', authenticate, csrf)
 adminApi.route('/media', uploadImage)
 adminApi.get('/dashboard', async (c) => c.json({ data: await dashboard(c.env.DB) }))
+adminApi.get('/booking-notifications', async (c) => c.json({ data: await bookingInbox(c.env.DB, c.get('admin').id) }))
+adminApi.post('/booking-notifications/read', async (c) => {
+  const { through } = parse(z.object({ through: z.int().positive() }).strict(), await jsonBody(c))
+  return c.json({ data: await markBookingNotificationsRead(c.env.DB, c.get('admin').id, through) })
+})
 adminApi.get('/availability', async (c) => {
   const q = parse(availabilitySchema, c.req.query())
   return c.json({ data: await dayAvailability(c.env.DB, q.date, q.service_id, q.barber_id, true, q.booking_id) })
@@ -31,6 +36,9 @@ adminApi.get('/bookings/:id', async (c) => c.json({ data: await getBooking(c.env
 adminApi.patch('/bookings/:id', async (c) => c.json({
   data: await updateBooking(c.env.DB, parse(identifier, c.req.param('id')), c.get('admin').id, parse(bookingPatch, await jsonBody(c))),
 }))
+adminApi.delete('/bookings/:id', async (c) => c.json({
+  data: await deleteBooking(c.env.DB, parse(identifier, c.req.param('id')), c.get('admin').id),
+}))
 adminApi.post('/bookings/:id/cancel', async (c) => c.json({
   data: await updateBooking(c.env.DB, parse(identifier, c.req.param('id')), c.get('admin').id, { status: 'cancelled' }),
 }))
@@ -43,9 +51,11 @@ for (const key of ['services', 'barbers', 'shifts'] as const) {
   adminApi.patch('/' + key + '/:id', async (c) => c.json({
     data: await saveCatalog(c.env.DB, c.get('admin').id, key, parse(catalogs[key] as z.ZodType<z.infer<typeof serviceSchema | typeof barberSchema | typeof shiftSchema>>, await jsonBody(c)), parse(identifier, c.req.param('id'))),
   }))
-  adminApi.delete('/' + key + '/:id', async (c) => c.json({
-    data: await saveCatalog(c.env.DB, c.get('admin').id, key, null, parse(identifier, c.req.param('id'))),
-  }))
+  adminApi.delete('/' + key + '/:id', async (c) => {
+    const id = parse(identifier, c.req.param('id'))
+    const actor = c.get('admin').id
+    return c.json({ data: c.req.query('permanent') === '1' ? await deleteCatalog(c.env.DB, actor, key, id) : await saveCatalog(c.env.DB, actor, key, null, id) })
+  })
 }
 adminApi.get('/schedules', async (c) => c.json({ data: await getWeek(c.env.DB, parse(date, c.req.query('week') ?? today())) }))
 adminApi.post('/schedules', async (c) => c.json({

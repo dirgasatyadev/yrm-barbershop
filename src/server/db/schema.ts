@@ -79,6 +79,15 @@ export const stateVersion = sqliteTable('state_version', { id: integer().primary
 export const idempotency = sqliteTable('booking_idempotency', {
   key: text().primaryKey().notNull(), fingerprint: text().notNull(), response: text({ mode: 'json' }).notNull(),
   booking_id: text().notNull().references(() => bookings.id, { onDelete: 'cascade' }), created_at: timestamp(),
+}, (t) => [index('booking_idempotency_booking').on(t.booking_id)])
+export const deletedBookingRequests = sqliteTable('deleted_booking_requests', { key: id() })
+export const bookingNotifications = sqliteTable('booking_notifications', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  booking_id: text().notNull().unique().references(() => bookings.id, { onDelete: 'cascade' }),
+})
+export const adminBookingInbox = sqliteTable('admin_booking_inbox', {
+  admin_id: id().references(() => admins.id, { onDelete: 'cascade' }),
+  last_seen_id: integer().notNull(),
 })
 export const rateLimits = sqliteTable('rate_limits', {
   key: text().primaryKey().notNull(), hits: integer().notNull(), expires_at: integer().notNull(),
