@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell } from 'lucide-react'
+import { Bell, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { clock, dateLabel } from '../../../shared/time.ts'
@@ -7,6 +7,7 @@ import type { BookingInbox } from '../../../shared/types.ts'
 import { Empty, Failure, Loading, Modal, useToast } from '../../components/ui.tsx'
 import { adminKey, api, errorText } from '../../lib/api.ts'
 import { useAdminApi } from './admin-data.ts'
+import { useBookingSound } from './booking-sound.ts'
 
 const path = '/booking-notifications'
 
@@ -18,8 +19,9 @@ export default function BookingNotifications() {
   const toast = useToast()
   const admin = useAdminApi()
   const cache = useQueryClient()
+  const { active: soundActive, supported: soundSupported, play, toggle } = useBookingSound()
   const inbox = useQuery({ queryKey: adminKey(path), queryFn: ({ signal }) => api<BookingInbox>('/admin' + path, { signal }),
-    refetchInterval: 15_000, staleTime: 0 })
+    refetchInterval: 15_000, refetchIntervalInBackground: soundActive, staleTime: 0 })
   const data = inbox.data
   const unread = data?.unread ?? 0
 
@@ -30,10 +32,13 @@ export default function BookingNotifications() {
     if (previous === null) { lastObserved.current = newest; return }
     if (newest <= previous) return
     lastObserved.current = newest
-    if (newest > data.last_seen_id) toast('Reservasi online baru masuk. Cek lonceng notifikasi.')
+    if (newest > data.last_seen_id) {
+      toast('Reservasi online baru masuk. Cek lonceng notifikasi.')
+      play()
+    }
     void cache.invalidateQueries({ predicate: ({ queryKey: [scope, key] }) =>
       scope === 'admin' && (key === '/dashboard' || (typeof key === 'string' && key.startsWith('/bookings?'))) })
-  }, [data, cache, toast])
+  }, [data, cache, toast, play])
 
   async function markRead(through: number) {
     setPending(true)
@@ -52,6 +57,13 @@ export default function BookingNotifications() {
       {unread > 0 && <span className="notification-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
     </button>
     {open && <Modal title="Notifikasi reservasi" close={() => setOpen(false)}>
+      {soundSupported && <div className="section-row">
+        <span className="muted">Suara notifikasi</span>
+        <button className="button outline" type="button" onClick={() => void toggle()}>
+          {soundActive ? <Volume2 size={17} aria-hidden="true" /> : <VolumeX size={17} aria-hidden="true" />}
+          {soundActive ? 'Bisukan suara' : 'Aktifkan suara'}
+        </button>
+      </div>}
       {inbox.isPending ? <Loading /> : inbox.isError ? <Failure error={inbox.error} retry={() => void inbox.refetch()} /> : <>
         {error && <p className="message danger" role="alert">{error}</p>}
         {unread > 0 && <div className="section-row"><span>{unread} belum dibaca</span>

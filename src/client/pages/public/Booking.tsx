@@ -47,7 +47,7 @@ export default function BookingWizard() {
   const [start, setStart] = useState<number | null>(null)
   const [capster, setCapster] = useState<string | null>(null)
   const [slotBarber, setSlotBarber] = useState('')
-  const [fields, setFields] = useState({ customer_name: '', customer_phone: '', customer_notes: '' })
+  const [fields, setFields] = useState({ customer_name: '', customer_phone: '' })
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
   const key = useRef<{ payload: string; value: string } | null>(null)
@@ -152,8 +152,6 @@ export default function BookingWizard() {
             onChange={(e) => setFields({ ...fields, customer_name: e.target.value })} /></label>
           <label className="field">Nomor WhatsApp {config.phone_required ? '' : '(opsional)'}<input type="tel" required={config.phone_required}
             autoComplete="tel" maxLength={30} value={fields.customer_phone} onChange={(e) => setFields({ ...fields, customer_phone: e.target.value })} /></label>
-          <label className="field">Catatan (opsional)<textarea maxLength={500} rows={3} value={fields.customer_notes}
-            onChange={(e) => setFields({ ...fields, customer_notes: e.target.value })} /></label>
           <button className="button primary" type="submit">Tinjau Reservasi</button>
         </form>}
         {effectiveStep === 4 && service && start !== null && <>

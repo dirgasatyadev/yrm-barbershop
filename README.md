@@ -57,7 +57,7 @@ Waktu kedatangan disimpan sebagai tanggal lokal dan jumlah menit sejak pukul 00.
 - Pelanggan dapat memeriksa jam tersedia, dibooking, dan tidak tersedia untuk tiap capster. Jika pelanggan memilih jam setelah memfilter satu capster, pilihan itu langsung dipakai pada langkah Data Pelanggan.
 - Halaman **Reservasi** menampilkan daftar bernomor per capster. Setiap daftar memiliki pagination sendiri, dan jam diurutkan dari awal ke akhir pada tanggal yang sama.
 - Tombol **Hapus** di **Reservasi**, **Layanan**, **Capster**, dan **Shift Kerja** membuka konfirmasi. Penghapusan reservasi melepas slot dan mengeluarkan data dari laporan. Entri katalog yang masih terhubung ke reservasi, jadwal, atau rotasi dapat dinonaktifkan.
-- Lonceng admin menampilkan reservasi online baru. Panel memeriksa notifikasi setiap 15 detik saat tab aktif dan menyimpan status baca per akun.
+- Lonceng admin menampilkan reservasi online baru dan menyimpan status baca per akun. Panel memeriksa notifikasi setiap 15 detik, termasuk saat tab di latar belakang jika suara aktif. Browser dapat meminta interaksi pertama sebelum memutar suara. Pengaturan suara tersedia di dalam lonceng.
 - Di **Pengaturan**, admin dapat mengganti profil, sampul, latar, deskripsi, kontak, dan pesan sebelum konfirmasi. Foto profil atau logo diubah dengan mengunggah file. Foto capster diatur di **Capster**. File JPG, PNG, dan WebP maksimal 2 MB diunggah saat formulir disimpan.
 - Dashboard memakai data D1. Nilai estimasi berasal dari reservasi terkonfirmasi dan selesai hari ini. Nilai layanan selesai memakai snapshot reservasi berstatus selesai. Aplikasi tidak memiliki pencatatan pembayaran.
 
