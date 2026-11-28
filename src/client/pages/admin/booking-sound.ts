@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import doorbellUrl from '../../assets/booking-doorbell.mp3?url'
 
 const preferenceKey = 'yrm-booking-sound-muted'
 
@@ -7,48 +8,27 @@ function isMuted() {
   catch { return false }
 }
 
-function chime(context: AudioContext) {
-  const start = context.currentTime
-  const tones = new Set<OscillatorNode>()
-  const strikes = [
-    { pitch: 392, delay: 0, duration: 1.6, peak: 0.43 },
-    { pitch: 587, delay: 0.82, duration: 3.38, peak: 0.5 },
-  ]
-  for (const { pitch, delay, duration, peak } of strikes) {
-    const time = start + delay
-    const partials = [
-      { frequency: pitch, length: duration, gain: peak },
-      { frequency: pitch * 2.58, length: duration * 0.32, gain: peak * 0.22 },
-    ]
-    for (const { frequency, length, gain } of partials) {
-      const tone = context.createOscillator()
-      const volume = context.createGain()
-      tone.frequency.value = frequency
-      volume.gain.setValueAtTime(0, time)
-      volume.gain.linearRampToValueAtTime(gain, time + 0.02)
-      volume.gain.exponentialRampToValueAtTime(gain * 0.12, time + length * 0.82)
-      volume.gain.exponentialRampToValueAtTime(0.001, time + length)
-      tone.connect(volume).connect(context.destination)
-      tones.add(tone)
-      tone.onended = () => {
-        tones.delete(tone)
-        tone.disconnect()
-        volume.disconnect()
-      }
-      tone.start(time)
-      tone.stop(time + length)
-    }
-  }
-  return () => { for (const tone of tones) tone.stop() }
-}
-
 export function useBookingSound() {
   const [muted, setMuted] = useState(isMuted)
   const [ready, setReady] = useState(false)
   const context = useRef<AudioContext | null>(null)
-  const stopChime = useRef<(() => void) | null>(null)
+  const doorbell = useRef<Promise<AudioBuffer> | null>(null)
+  const source = useRef<AudioBufferSourceNode | null>(null)
+  const playback = useRef(0)
   const supported = typeof window.AudioContext === 'function'
   const active = ready && !muted
+
+  const loadDoorbell = useCallback((audio: AudioContext) => {
+    if (!doorbell.current) {
+      const loading = fetch(doorbellUrl).then((response) => {
+        if (!response.ok) throw new Error('Audio notifikasi gagal diunduh.')
+        return response.arrayBuffer()
+      }).then((buffer) => audio.decodeAudioData(buffer))
+      doorbell.current = loading
+      void loading.catch(() => { if (doorbell.current === loading) doorbell.current = null })
+    }
+    return doorbell.current
+  }, [])
 
   const activate = useCallback(async () => {
     if (!supported) return null
@@ -57,11 +37,12 @@ export function useBookingSound() {
       if (audio.state !== 'running') await audio.resume()
       if (context.current === audio && audio.state === 'running') {
         setReady(true)
+        void loadDoorbell(audio).catch(() => undefined)
         return audio
       }
     } catch { /* Visual notifications remain available if audio is blocked. */ }
     return null
-  }, [supported])
+  }, [loadDoorbell, supported])
 
   useEffect(() => {
     if (muted || !supported) return
@@ -75,28 +56,52 @@ export function useBookingSound() {
     }
   }, [activate, muted, supported])
 
+  const stop = useCallback(() => {
+    playback.current++
+    const playing = source.current
+    source.current = null
+    if (playing) {
+      playing.stop()
+      playing.disconnect()
+    }
+  }, [])
+
   useEffect(() => () => {
+    stop()
     const audio = context.current
     context.current = null
     if (audio && audio.state !== 'closed') void audio.close().catch(() => undefined)
-  }, [])
+  }, [stop])
 
-  const playChime = useCallback((audio: AudioContext) => {
-    stopChime.current?.()
-    stopChime.current = chime(audio)
-  }, [])
+  const playDoorbell = useCallback(async (audio: AudioContext) => {
+    stop()
+    const request = playback.current
+    try {
+      const buffer = await loadDoorbell(audio)
+      if (request !== playback.current || audio.state !== 'running') return
+      const player = audio.createBufferSource()
+      player.buffer = buffer
+      player.connect(audio.destination)
+      player.onended = () => {
+        if (source.current === player) source.current = null
+        player.disconnect()
+      }
+      player.start()
+      source.current = player
+    } catch { /* Visual notifications remain available if the clip cannot play. */ }
+  }, [loadDoorbell, stop])
 
   const play = useCallback(() => {
-    if (!muted && context.current?.state === 'running') playChime(context.current)
-  }, [muted, playChime])
+    if (!muted && context.current?.state === 'running') void playDoorbell(context.current)
+  }, [muted, playDoorbell])
 
   async function toggle() {
     setMuted(active)
     try { localStorage.setItem(preferenceKey, String(active)) } catch { /* Use the in-memory choice. */ }
-    if (active) stopChime.current?.()
+    if (active) stop()
     else {
       const audio = await activate()
-      if (audio) playChime(audio)
+      if (audio) await playDoorbell(audio)
     }
   }
 
